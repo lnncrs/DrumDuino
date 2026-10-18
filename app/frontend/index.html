@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>DrumDuino · Monitor</title>
+    <link rel="stylesheet" href="/static/style.css" />
+    <script src="/static/app.js" defer></script>
+  </head>
+  <body>
+    <header>
+      <div>
+        <h1>DrumDuino</h1>
+        <p>Bateria eletrônica · Monitor dos sensores</p>
+      </div>
+      <span id="status" class="badge">Verificando servidor</span>
+    </header>
+    <main>
+      <section class="card">
+        <h2>Conexão com a placa</h2>
+        <p>
+          Selecione a porta do Arduino. Feche o monitor do PlatformIO antes de
+          conectar.
+        </p>
+        <form id="connection-form">
+          <label
+            >Porta serial<select id="port" required>
+              <option value="">Procurando portas…</option>
+            </select></label
+          >
+          <label
+            >Velocidade<select id="baud">
+              <option>9600</option>
+              <option>57600</option>
+              <option>115200</option>
+            </select></label
+          >
+          <button id="refresh" type="button" class="secondary">
+            Atualizar portas
+          </button>
+          <button id="connect" type="submit">Conectar</button>
+          <button id="disconnect" type="button" class="danger" disabled>
+            Desconectar
+          </button>
+        </form>
+        <p id="notice" role="status" aria-live="polite">
+          A conexão pode reiniciar a placa. A velocidade deve ser igual à do
+          firmware.
+        </p>
+      </section>
+      <section class="card">
+        <div class="heading">
+          <div>
+            <h2>Monitor serial</h2>
+            <p>Mensagens originais recebidas do Arduino</p>
+          </div>
+          <span id="count" class="badge">0 mensagens</span>
+        </div>
+        <div class="toolbar">
+          <button id="pause" class="secondary" aria-pressed="false">
+            Pausar visualização</button
+          ><button id="clear" class="secondary">Limpar</button
+          ><label class="check"
+            ><input id="scroll" type="checkbox" checked /> Rolagem
+            automática</label
+          >
+        </div>
+        <pre
+          id="monitor"
+          role="region"
+          aria-label="Mensagens seriais"
+          tabindex="0"
+        >
+Aguardando conexão com a placa.</pre
+        >
+        <p id="view-status">
+          Até 500 mensagens na tela. Pausar a visualização mantém a leitura
+          ativa.
+        </p>
+      </section>
+    </main>
+    <footer>
+      Arduino Nano · Comunicação USB serial · Áudio não habilitado
+    </footer>
+  </body>
+</html>

@@ -396,7 +396,30 @@ flowchart LR
 
 > **Da simplificação:** Essa arquitetura dispensa **REAPER**, **Addictive Drums**, **Hairless** e **drivers de porta MIDI virtual** para o teste sonoro, no entanto, ela não pretende substituir os recursos completos de gravação e edição de uma DAW.
 
-## Como executar o teste
+## Como executar os testes
+
+### Teste 1: Piscar o LED na placa
+
+> **Hardware necessário:** Placa Arduino Nano conectada ao USB do computador.
+
+As instruções abaixo executam o **teste de piscar o LED na placa**.
+
+1. Abra a pasta do projeto no Visual Studio Code com PlatformIO.
+2. Com a placa desconectada, confira a montagem do LED.
+3. Conecte o Nano por USB e selecione o ambiente `blink`.
+4. Compile com **Build** e grave com **Upload**.
+5. O LED deve piscar indicando que o teste foi bem-sucedido.
+
+Se `pio` estiver disponível no terminal:
+
+```sh
+pio run -e blink
+pio run -e blink -t upload
+```
+
+### Teste 2: Sensor piezoelétrico na placa
+
+> **Hardware necessário:** Placa Arduino Nano conectada ao USB do computador com um sensor piezoelétrico montado na entrada A0.
 
 As instruções abaixo executam o **teste de um sensor piezoelétrico**, com indicação por LED e monitor serial.
 
@@ -416,6 +439,128 @@ pio device monitor -b 9600
 ```
 
 Como `default_envs = piezo`, `pio run` também compila esse teste. Para recuperar o teste do LED, use `pio run -e blink -t upload`. Feche o monitor serial antes de gravar novamente ou abrir outro programa que use a mesma porta.
+
+### Teste 3: Monitor serial em Python
+
+> **Hardware necessário:** Placa Arduino Nano conectada ao USB do computador com ao menos um sensor piezoelétrico montado.
+
+O monitor em Python recebe as mensagens do Arduino e mostra as leituras com horário no terminal. Execute os comandos abaixo na pasta **raiz do projeto**, onde estão `pyproject.toml` e `platformio.ini`.
+
+#### Instalar as dependências
+
+Com o uv instalado, prepare o ambiente do projeto:
+
+```sh
+uv sync
+```
+
+#### Localizar a placa
+
+Conecte o Arduino ao cabo USB e liste as portas disponíveis com o comando:
+
+```sh
+uv run python -m app.backend.serial_monitor --list-ports
+```
+
+Procure por algo semelhante a:
+
+```text
+COM7: USB-SERIAL CH340 (COM7)
+```
+
+Tome nota da porta correspondente ao seu Arduino no exemplo acima `COM7`.
+
+#### Acompanhar as mensagens
+
+**Feche o monitor serial do PlatformIO** e abra a porta identificada na listagem:
+
+```sh
+uv run python -m app.backend.serial_monitor --port COM7
+```
+
+Substitua `COM7` pela porta da placa. No Ubuntu, use o nome correspondente, como `/dev/ttyUSB0`.
+
+A velocidade padrão é **9600 baud**, conforme o firmware. A opção `--baud` permite alterá-la, desde que o firmware use o mesmo valor.
+
+Toque no sensor piezoelétrico para acompanhar mensagens como `Batida! Leitura: 735`. Pressione **Ctrl+C** para encerrar e liberar a porta antes de gravar o firmware ou abrir o monitor do PlatformIO. A abertura da conexão pode reiniciar o Arduino.
+
+O monitor Python é uma alternativa ao monitor do PlatformIO **mas use apenas um por vez**. Ele exibe os dados do projeto no terminal, sem iniciar a interface web ou gerar áudio.
+
+### Teste 4: Monitor via interface web
+
+> **Hardware necessário:** Placa Arduino Nano conectada ao USB do computador com ao menos um sensor piezoelétrico montado.
+
+Este teste recebe as mensagens do Arduino no **backend Python** e as apresenta no **frontend**, a página aberta no navegador. O mesmo servidor atende ambas as partes, não é necessário iniciar um segundo programa para o frontend.
+
+Execute os comandos na pasta **raiz do projeto**, onde estão `pyproject.toml` e `platformio.ini`. A placa deve estar com o firmware do ambiente `piezo` gravado, conforme o teste anterior.
+
+#### Instalar as dependências
+
+Com o uv instalado, prepare o ambiente usando as versões registradas no projeto:
+
+```sh
+uv sync
+```
+
+#### Iniciar o backend
+
+**Feche o monitor serial do PlatformIO e encerre o monitor Python de terminal**, se estiverem abertos. Depois, execute:
+
+```sh
+uv run python -m app.backend.server
+```
+
+Aguarde a mensagem com o endereço do servidor:
+
+```text
+Uvicorn running on http://127.0.0.1:8000
+```
+
+Mantenha esse terminal aberto durante o teste. Se o endereço já estiver em uso, encerre a outra instância do servidor antes de executar novamente.
+
+#### Abrir o frontend
+
+Abra [DrumDuino local](http://127.0.0.1:8000) no navegador. A página deve apresentar **Conexão com a placa** e **Monitor serial**. Isso confirma que o servidor está entregando o frontend.
+
+O backend usa [FastAPI](https://fastapi.tiangolo.com/) e [Uvicorn](https://www.uvicorn.org/). O frontend usa HTML, CSS e JavaScript, sem ferramentas adicionais de instalação. Ambos funcionam localmente, sem internet.
+
+#### Localizar e conectar a placa
+
+1. Conecte o Arduino pelo cabo USB de dados.
+2. Clique em **Atualizar portas**.
+3. Em **Porta serial**, procure a identificação da placa, por exemplo `COM7 · USB-SERIAL CH340 (COM7)`. No Ubuntu, o nome pode ser `/dev/ttyUSB0`.
+4. Selecione a porta e mantenha a velocidade em **9600**, conforme o firmware.
+5. Clique em **Conectar**. O indicador deve mostrar **Conectado** e a porta selecionada.
+
+A abertura da conexão pode reiniciar o Arduino. Se a porta não aparecer, confira o cabo, o reconhecimento da placa pelo sistema e atualize a lista. Se não conseguir conectar, confira se outro monitor está usando a mesma porta.
+
+#### Acompanhar as mensagens
+
+Toque nos sensores da bateria. O monitor da página deve mostrar mensagens com horário, semelhantes a:
+
+```text
+[14:30:05] Batida! Leitura: 735
+```
+
+O horário e o valor variam. Ver as mensagens na página confirma o caminho **Arduino → USB → backend → frontend**. O teste não produz áudio.
+
+| Controle | Como testar | Resultado esperado |
+|---|---|---|
+| Pausar visualização | Clique e toque nos sensores | A tela deixa de mostrar novas mensagens, mas o backend continua lendo a serial |
+| Retomar visualização | Clique e toque novamente | Novas mensagens aparecem; as recebidas durante a pausa não são recuperadas |
+| Limpar | Clique com mensagens na tela | Remove as mensagens visíveis, sem zerar o contador total do servidor |
+| Rolagem automática | Mantenha marcada e gere mensagens suficientes para preencher o monitor | A visualização acompanha as mensagens mais recentes |
+| Desconectar | Clique ao terminar o teste | O indicador mostra a placa desconectada e a porta fica livre para outro monitor ou gravação |
+
+O monitor mantém até **500 mensagens**. A página consulta o backend a cada **250 ms**; a leitura serial acontece independentemente dessas consultas.
+
+#### Encerrar o teste
+
+Clique em **Desconectar** e pressione **Ctrl+C** no terminal do servidor. Encerrar o servidor também fecha a conexão serial, caso ela esteja aberta.
+
+Fechar somente a aba do navegador não encerra o backend nem libera a porta. Se a conexão USB for interrompida, confira o cabo, atualize as portas e conecte novamente.
+
+O código está separado em `app/backend/server.py` (servidor e leitura serial) e `app/frontend/` (página, estilo e controles).
 
 ## Licença
 
