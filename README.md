@@ -10,50 +10,119 @@ Disciplina e quadrimestre a confirmar
 Lenin Cristi<br />
 lenin.cristi@aluno.ufabc.edu.br
 
+## Sumário
+
+- [Resumo e funcionamento](#resumo)
+- [Hardware e montagem](#hardware-e-montagem)
+- [Ambiente de desenvolvimento](#ambiente-de-desenvolvimento)
+- [Configuração do projeto](#configuração-do-projeto)
+- [Como executar os testes](#como-executar-os-testes)
+- [Estrutura do projeto e protocolo serial](#estrutura-do-projeto-e-protocolo-serial)
+- [Software usado no projeto original](#software-usado-no-projeto-original)
+- [Proposta de software para utilização no projeto atual](#proposta-de-software-para-utilização-no-projeto-atual)
+- [Problemas comuns](#problemas-comuns)
+- [Licença](#licença)
+
 ## Resumo
 
-O **DrumDuino** é um projeto didático de bateria eletrônica baseado no Arduino Nano (ATmega328) ou Arduino Uno R3, firmware em **C++** e organização pelo **PlatformIO**, a ponte serial é feita via **USB** com **pySerial** e sintetizada pelo **FluidSynth** no computador.
+O **DrumDuino** é um projeto didático de bateria eletrônica baseado no Arduino Nano (ATmega328P) com o Uno R3 como alternativa, usa código escrito em **C++** organizado num projeto **PlatformIO**.
 
-> **Status Atual** O firmware lê um sensor piezoelétrico na entrada A0 e, ao detectar uma leitura igual ou superior ao limiar, acende brevemente o LED integrado e informa a leitura pelo monitor serial.
+O firmware embarcado no **Arduino** detecta as batidas dos sensores piezoelétricos e envia eventos pela USB, o aplicativo **Python** recebe os eventos via biblioteca **pySerial** e reproduz os sons com o **FluidSynth**. Uma interface web com monitor serial é disponibilizada. A montagem de teste usa um ou mais sensores a partir de A0, com intensidade sonora fixa.
 
-## Estrutura do projeto
+### Como a bateria funciona
+
+O Arduino lê os sensores e envia uma mensagem por batida. No computador, o backend Python recebe os dados pela serial e aciona o FluidSynth. A SoundFont fornece os sons, enquanto o frontend permite acompanhar as mensagens e controlar a conexão pelo navegador.
+
+```mermaid
+flowchart LR
+    S["Sensores"] --> N["Arduino Nano"]
+    N -->|USB serial| P["Backend Python"]
+    P --> F["FluidSynth + SoundFont"]
+    F --> A["Áudio no computador"]
+    P <-->|Conexão e monitor| W["Interface web local"]
+```
+
+## Hardware e montagem
+
+### Arduino
+
+Arduino é uma plataforma de desenvolvimento eletrônico. Suas placas possuem um **microcontrolador**, em outras palavras um pequeno computador que executa o programa ou **firmware** e interage com os sensores pelos pinos de conexão.
+
+As placas consideradas neste projeto são o **Nano** e o **Uno R3**, ambos baseados no ATmega328P. Os links abaixo incluem fotos e desenhos dos pinos para identificar cada modelo.
+
+| Placa | Características | Uso no projeto |
+|---|---|---|
+| [Arduino Nano clássico - fotos e documentação](https://docs.arduino.cc/hardware/nano/) | Compacto, adequado à protoboard, com entradas analógicas e USB | Placa usada na montagem e configurada no `platformio.ini` |
+| [Arduino Uno R3 - fotos e documentação](https://docs.arduino.cc/hardware/uno-rev3/) | Maior, com conectores que facilitam montagens didáticas | Alternativa de montagem e placa do trabalho de referência |
+
+#### Conectores do Arduino
+
+Observe as marcações impressas ao lado dos pinos do **Arduino Nano clássico** para identificar cada conexão. A tabela agrupa os sinais por função e indica como se relacionam com a bateria. As referências levam ao desenho oficial da placa.
+
+| Entrada | Descrição | Uso no projeto |
+|---|---|---|
+| **A0 a A7** | Entradas analógicas: medem tensões e as transformam em números | Cada entrada utilizada é conectada ao sinal de um sensor piezoelétrico, por seu circuito de proteção |
+| **D0 a D13** | Pinos digitais: leem ou produzem dois estados, baixo e alto. Podem aparecer na placa apenas como números de 0 a 13 | D0 e D1 participam da comunicação serial; D13 controla o LED integrado. Os demais estão sem uso |
+| **D0 / RX e D1 / TX** | Recepção (RX) e transmissão (TX) de dados pela serial | Comunicação com o computador pelo conversor USB-serial, sem fios externos nesses pinos |
+| **D13** | Pino digital ligado ao LED integrado | Indicação visual das batidas, sem necessidade de LED externo |
+| **GND** | Referência elétrica comum, também chamada de terra | Retorno comum dos sensores e dos componentes de proteção |
+| **5V** | Linha de alimentação de 5 V para circuitos externos, respeitando os limites da placa | Sem uso externo; os sensores piezoelétricos geram seu próprio sinal |
+| **3V3** | Saída de alimentação de 3,3 V para circuitos externos, respeitando os limites da placa | Sem uso |
+| **RST / RESET** | Reinicia o microcontrolador e a execução do programa | Sem ligação externa |
+| **AREF** | Referência externa de tensão para medições analógicas | Sem uso |
+| **VIN** | Entrada de alimentação externa da placa | Sem uso; a alimentação da bateria vem pela USB |
+| **USB** | Conector para alimentação e comunicação com o computador | Alimentação da placa, gravação do firmware e envio das leituras |
+
+### Componentes do projeto
+
+| Componente | O que é | Para 1 sensor | Para 6 sensores |
+|---|---|---|---|
+| Sensor piezoelétrico | Sensor geralmente em forma de disco que produz um sinal elétrico ao ser deformado por uma batida | 1 | 6 |
+| Resistor de 1 MΩ | Componente que oferece resistência à corrente; nesta posição fornece um caminho para descarregar o sensor piezoelétrico | 1 | 6 |
+| Resistor de 10 kΩ | Resistor colocado no caminho do sinal para limitar a corrente | 1 | 6 |
+| Diodo Zener | Diodo usado para limitar a tensão; possui polaridade e precisa ser orientado corretamente | 1 | 6 |
+| Protoboard e jumpers | Base de contatos e fios para conectar os componentes sem solda | Conforme a montagem | Conforme a montagem |
+| Cabo USB de dados | Conecta a placa ao computador para alimentação, gravação e comunicação | 1 | 1 |
+
+> **Sobre os resistores:** O símbolo **Ω** representa ohm, uma unidade de resistência, seja **10 kΩ = 10.000 Ω** e **1 MΩ = 1.000.000 Ω** e resistores não possuem polaridade;
+
+> **Sobre os Diodos Zener:** A faixa identifica o cátodo ou seja o lado do diodo que deve ser conectado ao resistor de 10 kΩ que por sua vez está conectado a porta analógica A0, enquanto o ânodo vai ao GND.
+
+### Montagem simplificada com apenas um sensor piezoelétrico
+
+A montagem simplificada para testar um único sensor piezoelétrico na entrada A0 é:
 
 ```text
-.
-├── assets/                     # Identidade visual
-├── src/
-│   ├── main_v00_base.cpp       # Exemplo inicial
-│   ├── main_v01_blink.cpp      # Teste do LED integrado
-│   ├── main_v02_piezo.cpp      # Teste de um sensor piezoelétrico
-│   └── main_v03_hit.cpp        # Evento serial HIT
-├── include/                    # Diretório reservado para cabeçalhos
-├── lib/                        # Diretório reservado para bibliotecas
-├── test/                       # Diretório reservado para testes
-├── .vscode/                    # Configurações do editor
-├── platformio.ini              # Ambientes e seleção dos fontes
-├── .gitignore
-└── LICENSE                     # Licença MIT
+Sensor piezoelétrico (+) ──┬──── [10 kΩ] ───┬── A0
+                           │                │
+                         [1 MΩ]           Zener
+                           │                │
+Sensor piezoelétrico (−) ──┴────────────────┴── GND
 ```
 
-Para permitir entender a evolução do código, cada versão é mantida em um arquivo separado, facilitando a comparação e o aprendizado. Isso é feito através da utilização de diferentes arquivos para cada etapa do projeto, o PlatformIO chama isso de **ambientes**.
+| Componente/conexão | Função |
+|---|---|
+| Sensor piezoelétrico | Converte a deformação mecânica da batida em sinal elétrico |
+| Resistor de 1 MΩ | Fica em paralelo ao sensor piezoelétrico e fornece um caminho para descarga |
+| Resistor de 10 kΩ | Fica em série entre o sinal do sensor piezoelétrico e A0, limitando a corrente |
+| Zener | Fica entre o nó de A0 e GND para limitar excursões de tensão |
+| GND | Referência comum do circuito e do Nano |
 
-### Ambientes PlatformIO disponíveis
+O positivo do sensor piezoelétrico passa pelo resistor de **10 kΩ** antes de chegar ao A0. O resistor de **1 MΩ** liga o positivo ao negativo do sensor piezoelétrico, que vai ao GND do Arduino. O Zener conecta o ponto entre o resistor de 10 kΩ e A0 ao GND.
 
-Cada *versão* ou *ambiente* do código possui seu próprio `setup()` e `loop()`. A configuração em `platformio.ini` define o ambiente atual em uso, que também determina qual arquivo será compilado e executado na placa. Abra o arquivo `platformio.ini` para alterar o ambiente ativo:
+Para limitar pulsos positivos nessa disposição, o Zener deve ter o **cátodo (lado da faixa) no nó de A0** e o ânodo no GND. O modelo, a tensão nominal e a orientação efetivamente montada não foram registrados; confirmar esses dados antes de reproduzir a proteção. O artigo de referência cita 5,1 V, mas isso não confirma o componente usado nesta montagem.
 
-```ini
-[platformio]
-default_envs = piezo
-```
+### Comportamento da detecção
 
-| Ambiente | Arquivo selecionado | Comportamento |
-|---|---|---|
-| `base` | `main_v00_base.cpp` | Exemplo inicial, sem saída visível |
-| `blink` | `main_v01_blink.cpp` | LED aceso por 500 ms e apagado por 500 ms |
-| `piezo` | `main_v02_piezo.cpp` | Detecção de batidas, LED e mensagens na serial |
-| `hit` (padrão) | `main_v03_hit.cpp` | Detecção de batidas, LED e evento serial `HIT` |
+- `LIMIAR = 80`: uma leitura igual ou superior a esse valor pode disparar uma batida.
+- `INTERVALO_BATIDAS_MS = 100`: intervalo mínimo entre disparos reconhecidos.
+- `TEMPO_LED_MS = 40`: tempo em que o LED fica aceso após um disparo.
+- Uso de `millis()`, sem `delay()` no firmware do projeto.
+- Saída serial: `Batida! Leitura: <valor>` no ambiente `piezo` ou `HIT,0,<leitura>` no ambiente `hit`.
 
-## Ambiente de desenvolvimento do projeto
+A leitura exibida é a amostra que acionou o disparo, e não necessariamente o pico da batida. Diminua o limiar se os toques não forem reconhecidos ou aumente-o se houver disparos espontâneos. O intervalo de 100 ms reduz repetições causadas pela vibração, mas também limita a frequência dos disparos reconhecidos.
+
+## Ambiente de desenvolvimento
 
 São necessárias algumas ferramentas para abrir o código, compilá-lo (transformá-lo em um programa para a placa que chamamos de **firmware**), gravá-lo na placa e usar de fato o projeto como uma bateria virtual.
 
@@ -70,7 +139,7 @@ São necessárias algumas ferramentas para abrir o código, compilá-lo (transfo
 
 O **Git** copia o projeto para o computador. O **VS Code** é o editor onde trabalhamos, a extensão **PlatformIO** acrescenta a ele os comandos para compilar e gravar o programa no Arduino. Para o áudio no computador, o **uv** gerencia o Python e suas bibliotecas, enquanto o **FluidSynth** produz o som.
 
-O teste do projeto pelo monitor serial usa Git, VS Code e PlatformIO. Python, uv e FluidSynth pertencem à proposta de áudio. Não é necessário instalar o Arduino IDE separadamente. Tenha acesso à internet durante a instalação e a primeira compilação.
+O teste do projeto pelo monitor serial usa Git, VS Code e PlatformIO. Python e uv executam o aplicativo; FluidSynth fornece o áudio. Não é necessário instalar o Arduino IDE separadamente. Tenha acesso à internet durante a instalação e a primeira compilação.
 
 ### Instalar o Git
 
@@ -121,7 +190,30 @@ Referência: [Guia oficial para Linux/Ubuntu](https://code.visualstudio.com/docs
 2. Pesquise **PlatformIO IDE** e escolha a extensão publicada por **PlatformIO**.
 3. Clique em **Install / Instalar** e aguarde a preparação do ambiente.
 4. Reinicie ou recarregue o VS Code se solicitado.
+
 A extensão é instalada da mesma forma no Windows e no Ubuntu. Os comandos específicos do projeto aparecem depois que você abre a pasta do repositório.
+
+### Copiar o projeto do GitHub
+
+O **GitHub** é um serviço que hospeda projetos e permite compartilhar arquivos e seu histórico de alterações. Um **repositório** é o conjunto desses arquivos. **Clonar** significa criar uma cópia do repositório no seu computador usando o Git.
+
+O repositório deste projeto é [lnncrs/DrumDuino](https://github.com/lnncrs/DrumDuino).
+
+Para cloná-lo pelo VS Code:
+
+1. No menu **View / Exibir**, abra **Command Palette / Paleta de Comandos**.
+2. Procure e selecione **Git: Clone**.
+3. Cole `https://github.com/lnncrs/DrumDuino.git` e confirme.
+4. Escolha uma pasta para guardar o projeto.
+5. Ao terminar, clique em **Open / Abrir**. Se houver uma pergunta sobre confiança nos autores, revise a origem e os arquivos antes de autorizar a execução das ferramentas.
+
+Como alternativa, abra um terminal na pasta em que deseja copiar o projeto e execute:
+
+```sh
+git clone https://github.com/lnncrs/DrumDuino.git
+```
+
+Depois, no VS Code use **File > Open Folder / Arquivo > Abrir Pasta** e selecione a pasta `DrumDuino` criada pelo comando.
 
 ### Preparar o ambiente Python com o uv
 
@@ -158,11 +250,11 @@ uv --version
 uv python install
 ```
 
-O segundo comando instala Python pelo uv, sem precisar de um instalador separado. A versão de Python e as dependências do aplicativo devem ser definidas na configuração do componente de áudio; esses comandos apenas preparam as ferramentas.
+O segundo comando instala Python pelo uv, sem precisar de um instalador separado. O projeto requer Python 3.12 ou superior, conforme `pyproject.toml`. Depois de abrir a pasta do projeto, execute `uv sync --locked` para instalar as dependências registradas em `uv.lock`.
 
 Veja o [Guia de Python com uv](https://docs.astral.sh/uv/guides/install-python/).
 
-### Preparar FluidSynth
+### Preparar o FluidSynth
 
 O **FluidSynth** é o motor de áudio. Ele é instalado separadamente das bibliotecas **Python**; instalar apenas uma biblioteca de integração Python não instala necessariamente esse motor.
 
@@ -193,18 +285,7 @@ fluidsynth --version
 
 O comando de versão verifica o executável; a integração da biblioteca com Python é uma verificação separada.
 
-#### Configurar o caminho do FluidSynth
-
-Copie `.env.example` para `.env` na raiz do projeto. No arquivo `.env`, informe o caminho completo da biblioteca nativa do FluidSynth, não o executável:
-
-```dotenv
-FLUIDSYNTH_DLL="C:/caminho/fluidsynth/bin/libfluidsynth-3.dll"
-```
-
-No Windows, use barras `/` e mantenha as outras DLLs na pasta original. O backend lê essa configuração automaticamente ao iniciar; reinicie-o após alterar o arquivo. O `.env` é local e está ignorado pelo Git, enquanto `.env.example` serve de modelo para outros computadores.
-
-A SoundFont usa o caminho fixo `soundfonts/GeneralUser-GS.sf2`, relativo à raiz do projeto, sem variável no `.env`. Esses caminhos preparam a configuração do áudio; o monitor serial continua funcionando sem o FluidSynth.
-### Preparar SoundFont
+### Preparar o arquivo SoundFont
 
 Uma **SoundFont** é um banco de sons em um arquivo, normalmente com extensão `.sf2`. O **FluidSynth** é o motor que lê esse arquivo para produzir áudio. Para a bateria, usaremos o banco **GeneralUser GS**, de *S. Christian Collins*, que inclui instrumentos e 13 kits de bateria e é compatível com FluidSynth **2.3 ou superior**.
 
@@ -235,13 +316,13 @@ O caminho do banco de sons será **`soundfonts/GeneralUser-GS.sf2`**, tanto no W
 
 #### Conferir o carregamento no FluidSynth
 
-Na pasta onde o FluidSynth está instalado, abra um terminal e execute:
+No Windows, abra o PowerShell na pasta `bin` do FluidSynth e execute (substitua o caminho entre `< >` pelo arquivo real):
 
 ```sh
-fluidsynth "<caminho completo para o arquivo soundfonts/GeneralUser-GS.sf2>"
+.\fluidsynth.exe -n "<caminho completo para o arquivo soundfonts/GeneralUser-GS.sf2>"
 ```
 
-Se o comando não for encontrado, use o caminho completo do executável instalado. No PowerShell, para um caminho com espaços, use `&` antes do caminho entre aspas.
+No Ubuntu, use `fluidsynth -n "soundfonts/GeneralUser-GS.sf2"` na raiz do projeto. A opção `-n` dispensa dispositivos de entrada MIDI neste teste. Se o comando não for encontrado, use o caminho completo do executável instalado. No PowerShell, para um caminho com espaços, use `&` antes do caminho entre aspas.
 
 No terminal interativo do FluidSynth, digite `fonts` e pressione Enter para conferir se o banco foi carregado.
 
@@ -252,292 +333,85 @@ prog 9 0
 noteon 9 38 100
 ```
 
-Você deve ouvir o som da caixa da bateria se o banco de sons estiver carregado corretamente.
+**Você deve ouvir o som da caixa da bateria se o banco de sons estiver carregado corretamente.**
 
-Digite `quit` para encerrar. Esse teste verifica o carregamento do arquivo; não conecta o Arduino nem faz a bateria tocar.
+Digite `quit` para encerrar. Esse teste verifica o banco e a saída de áudio do computador, sem conectar o Arduino.
 
-##### Protocolo serial de batidas
-
-O ambiente **`hit`**, no arquivo `src/main_v03_hit.cpp`, mantém a detecção e o LED do teste básico e envia uma linha por batida, com os campos separados por vírgula:
-
-```text
-HIT,0,735
-```
-
-| Campo | Significado | Exemplo |
-|---|---|---|
-| Evento | Tipo da mensagem; `HIT` identifica uma batida | `HIT` |
-| Sensor | Identificação do sensor, definida por `SENSOR_ID` no firmware | `0` |
-| Leitura | Valor analógico que ultrapassou o limiar, de 0 a 1023 | `735` |
-
-A leitura corresponde à amostra que disparou a detecção, não necessariamente ao pico da batida. Ela não é uma intensidade MIDI: o backend deverá convertê-la para a escala musical. Cada mensagem termina com uma quebra de linha enviada por `Serial.println()`.
-
-Para compilar e gravar essa versão, feche a conexão serial na interface e qualquer outro monitor, depois execute na raiz:
-
-```sh
-pio run -e hit
-pio run -e hit -t upload
-```
-
-No monitor Python ou web, conecte novamente a **9600 baud**. Ao tocar no sensor, a mensagem deve aparecer como `HIT,0,<leitura>`. Esses monitores exibem o texto recebido sem precisar de alterações. O firmware `hit` não envia mensagem inicial; aguarde uma batida para ver dados.
-
-O ambiente `piezo` continua disponível e permanece como padrão no `platformio.ini`. Para selecionar `hit` como padrão, use `default_envs = hit`. O formato permite identificar outros sensores por IDs distintos quando eles forem configurados no firmware.
-### Teste 5: Som da bateria
-
-O backend usa [pyFluidSynth](https://github.com/nwhitehead/pyfluidsynth) (LGPL) para acionar a biblioteca do FluidSynth diretamente, sem abrir o executável ou uma entrada MIDI externa. O som sai no computador em que o backend está rodando.
-
-#### Configurar entrada e som no .env
-
-Mantenha `FLUIDSYNTH_DLL` com o caminho da DLL e configure o mapeamento das entradas analógicas:
-
-```dotenv
-DRUM_A0=38
-DRUM_A1=
-DRUM_A2=
-DRUM_A3=
-DRUM_A4=
-DRUM_A5=
-DRUM_A6=
-DRUM_A7=
-```
-
-| Variável/valor | Significado |
-|---|---|
-| `DRUM_A0=38` | O evento `HIT,0,<leitura>` aciona a nota 38: caixa |
-| `DRUM_A1=36` | Exemplo: o evento `HIT,1,<leitura>` aciona a nota 36: bumbo |
-| `DRUM_A2=42` | Exemplo: o evento `HIT,2,<leitura>` aciona a nota 42: chimbal fechado |
-| Valor vazio | Não reproduz som para essa entrada |
-
-As notas seguem o kit padrão de percussão da SoundFont GeneralUser GS. Os valores aceitos vão de 0 a 127. A0 usa 38 como padrão se a variável estiver ausente; uma variável vazia desabilita seu som. O `.env.example` contém o modelo.
-
-O ID do protocolo corresponde ao número da entrada: `0` representa A0, `1` representa A1, até `7` para A7. Esse mapeamento escolhe o som no backend; não acrescenta sensores ao firmware. O firmware `hit` disponibilizado lê o sensor 0. Outros sensores exigem sua própria leitura e identificação no Arduino.
-
-#### Executar
-
-1. Grave o firmware do ambiente `hit`, conforme a seção do protocolo serial.
-2. Confira a DLL configurada no `.env` e o arquivo `soundfonts/GeneralUser-GS.sf2`.
-3. Feche o FluidSynth de terminal e os outros monitores seriais.
-4. Encerre qualquer instância anterior do backend com **Ctrl+C** e execute na raiz:
-
-   ```sh
-   uv sync --locked
-   uv run python -m app.backend.server
-   ```
-
-5. Abra [DrumDuino local](http://127.0.0.1:8000) e atualize a página se ela já estava aberta.
-6. Confira **Áudio pronto** e o mapeamento exibido no painel de áudio.
-7. Conecte o Arduino pela interface em **9600 baud** e toque no sensor. O monitor deve mostrar `HIT,0,<leitura>` e a saída de áudio deve reproduzir a caixa.
-
-A intensidade MIDI é fixa em **100**, independentemente da leitura analógica. Pausar a visualização ou limpar o monitor não interrompe o áudio. Após alterar o `.env`, reinicie o backend.
-
-Se aparecer **Áudio indisponível**, confira a mensagem no painel: caminho da DLL, dependências da instalação, SoundFont, nota configurada e saída de áudio. O monitor serial continua disponível mesmo se o áudio não iniciar. A reprodução depende da saída de som padrão do computador.
-## Licença e referência
+#### Licença e referência da SoundFont
 
 O GeneralUser GS é gratuito e possui **licença própria**, separada da licença do FluidSynth. O autor permite criação musical pessoal e comercial, uso em projetos de software e modificações. A licença também registra limitações no rastreamento da origem de algumas amostras; por isso, não deve ser apresentada como uma licença OSS padronizada nem como garantia de origem integralmente rastreável.
 
 Preserve os arquivos de licença e autoria do pacote. Referências: [GeneralUser GS - página oficial](https://schristiancollins.com/generaluser), [licença do banco](https://github.com/mrbumpy409/GeneralUser-GS/blob/main/documentation/LICENSE.txt) e [introdução ao FluidSynth e SoundFonts](https://www.fluidsynth.org/wiki/GettingStarted/).
-### Copiar o projeto do GitHub
 
-O **GitHub** é um serviço que hospeda projetos e permite compartilhar arquivos e seu histórico de alterações. Um **repositório** é o conjunto desses arquivos. **Clonar** significa criar uma cópia do repositório no seu computador usando o Git.
+## Configuração do projeto
 
-O repositório deste projeto é [lnncrs/DrumDuino](https://github.com/lnncrs/DrumDuino).
+### Configurar o arquivo .env
 
-Para cloná-lo pelo VS Code:
+Na raiz do projeto, copie `.env.example` para `.env` e ajuste os valores. Se o arquivo já existir, edite-o sem substituir suas configurações. O `.env` é local e ignorado pelo Git; `.env.example` é o modelo compartilhado.
 
-1. No menu **View / Exibir**, abra **Command Palette / Paleta de Comandos**.
-2. Procure e selecione **Git: Clone**.
-3. Cole `https://github.com/lnncrs/DrumDuino.git` e confirme.
-4. Escolha uma pasta para guardar o projeto.
-5. Ao terminar, clique em **Open / Abrir**. Se houver uma pergunta sobre confiança nos autores, revise a origem e os arquivos antes de autorizar a execução das ferramentas.
+No Windows configure o caminho da biblioteca nativa, não do executável, e mantenha as outras DLLs na pasta original:
 
-Como alternativa, abra um terminal na pasta em que deseja copiar o projeto e execute:
+```dotenv
+FLUIDSYNTH_DLL="C:/caminho/fluidsynth/bin/libfluidsynth-3.dll"
 
-```sh
-git clone https://github.com/lnncrs/DrumDuino.git
+DRUM_A0=38 # Caixa acústica
+DRUM_A1=36 # Bumbo
+DRUM_A2=42 # Chimbal fechado
+DRUM_A3=46 # Chimbal aberto
+DRUM_A4=45 # Tom grave
+DRUM_A5=48 # Tom médio-agudo
+DRUM_A6=49 # Prato de ataque (crash)
+DRUM_A7=51 # Prato de condução (ride)
 ```
 
-Depois, no VS Code use **File > Open Folder / Arquivo > Abrir Pasta** e selecione a pasta `DrumDuino` criada pelo comando.
+No Ubuntu, deixe `FLUIDSYNTH_DLL` vazio: a biblioteca instalada pelo sistema é localizada automaticamente. A SoundFont usa o caminho fixo `soundfonts/GeneralUser-GS.sf2`, sem variável no `.env`.
+
+| Configuração | Significado |
+|---|---|
+| `DRUM_A0=38` | O evento `HIT,0,<leitura>` toca caixa |
+| `DRUM_A1=36` | O evento `HIT,1,<leitura>` toca bumbo |
+| `DRUM_A2=42` | O evento `HIT,2,<leitura>` toca chimbal fechado |
+| Valor vazio | Desabilita o som dessa entrada |
+
+Os valores são notas MIDI de 0 a 127 no kit de percussão da GeneralUser GS. Se `DRUM_A0` estiver ausente, o padrão é 38; as demais entradas ficam sem som quando ausentes. A intensidade é fixa em **100**.
+
+O ID identifica a entrada: `0` corresponde a A0, até `7` para A7. Configurar os sons não adiciona leituras ao Arduino: o firmware `hit` fornecido lê o sensor 0. Outros sensores precisam ser configurados no firmware.
+
+Reinicie o backend após alterar o `.env`. O monitor serial permanece disponível mesmo se a configuração de áudio falhar.
+
+### Ambientes PlatformIO disponíveis
+
+Cada *versão* ou *ambiente* do código possui seu próprio `setup()` e `loop()`. A configuração em `platformio.ini` define o ambiente atual em uso, que também determina qual arquivo será compilado e executado na placa. Abra o arquivo `platformio.ini` para alterar o ambiente ativo:
+
+```ini
+[platformio]
+default_envs = hit
+```
+
+| Ambiente | Arquivo selecionado | Comportamento |
+|---|---|---|
+| `base` | `main_v00_base.cpp` | Exemplo inicial, sem saída visível |
+| `blink` | `main_v01_blink.cpp` | LED aceso por 500 ms e apagado por 500 ms |
+| `piezo` | `main_v02_piezo.cpp` | Detecção de batidas, LED e mensagens na serial |
+| `hit` (padrão) | `main_v03_hit.cpp` | Detecção de batidas, LED e evento serial `HIT` |
 
 ### Reconhecer a placa e a configuração
 
-Abra no **VS Code** a pasta do projeto (a que contém `platformio.ini`). No ícone do PlatformIO, abra **Project Tasks** para encontrar as tarefas dos ambientes `base`, `blink` e `piezo`.
+Abra no **VS Code** a pasta do projeto (a que contém `platformio.ini`). No ícone do PlatformIO, abra **Project Tasks** para encontrar as tarefas dos ambientes `base`, `blink`, `piezo` e `hit`.
 
-O arquivo `platformio.ini` define a plataforma `atmelavr`, a placa `nanoatmega328`, o framework `arduino` e o monitor serial em **9600 baud**. O identificador `nanoatmega328` é a placa; `piezo` é o ambiente padrão do teste.
+O arquivo `platformio.ini` define a plataforma `atmelavr`, a placa `nanoatmega328`, o framework `arduino` e o monitor serial em **9600 baud**. O identificador `nanoatmega328` é a placa; `hit` é o ambiente padrão.
 
 #### Windows
 
-> Este processo é automático na maioria dos casos usando o **PlatformIO**.
+
 
 Conecte o Nano com um cabo USB de dados e procure sua porta COM no **Gerenciador de Dispositivos**, em **Portas (COM e LPT)**. Se a placa não for reconhecida, confira o cabo e o driver do conversor USB-serial, conforme o fabricante da placa.
 
 #### Linux (Ubuntu)
 
-> Este processo é automático na maioria dos casos usando o **PlatformIO**.
+
 
 Conecte o Nano com um cabo USB de dados. Se a porta não aparecer ou houver erro de permissão, siga o [guia de regras e permissões USB do PlatformIO](https://docs.platformio.org/en/latest/core/installation/udev-rules.html). No Ubuntu, o acesso à porta também pode exigir que seu usuário pertença ao grupo `dialout`, conforme a orientação desse guia.
-
-## Hardware usado no projeto
-
-### Arduino
-
-Arduino é uma plataforma de desenvolvimento eletrônico. Suas placas possuem um **microcontrolador**, em outras palavras um pequeno computador que executa o programa ou **firmware** e interage com os sensores pelos pinos de conexão.
-
-As placas consideradas neste projeto são o **Nano** e o **Uno R3**, ambos baseados no ATmega328P. Os links abaixo incluem fotos e desenhos dos pinos para identificar cada modelo.
-
-| Placa | Características | Uso no projeto |
-|---|---|---|
-| [Arduino Nano clássico - fotos e documentação](https://docs.arduino.cc/hardware/nano/) | Compacto, adequado à protoboard, com entradas analógicas e USB | Placa usada na montagem e configurada no `platformio.ini` |
-| [Arduino Uno R3 - fotos e documentação](https://docs.arduino.cc/hardware/uno-rev3/) | Maior, com conectores que facilitam montagens didáticas | Alternativa de montagem e placa do trabalho de referência |
-
-#### Conectores do Arduino
-
-Observe as marcações impressas ao lado dos pinos do **Arduino Nano clássico** para identificar cada conexão. A tabela agrupa os sinais por função e indica como se relacionam com a bateria. As referências levam ao desenho oficial da placa.
-
-| Entrada | Descrição | Uso no projeto |
-|---|---|---|
-| **A0 a A7** | Entradas analógicas: medem tensões e as transformam em números | Cada entrada utilizada é conectada ao sinal de um sensor piezoelétrico, por seu circuito de proteção |
-| **D0 a D13** | Pinos digitais: leem ou produzem dois estados, baixo e alto. Podem aparecer na placa apenas como números de 0 a 13 | D0 e D1 participam da comunicação serial; D13 controla o LED integrado. Os demais estão sem uso |
-| **D0 / RX e D1 / TX** | Recepção (RX) e transmissão (TX) de dados pela serial | Comunicação com o computador pelo conversor USB-serial, sem fios externos nesses pinos |
-| **D13** | Pino digital ligado ao LED integrado | Indicação visual das batidas, sem necessidade de LED externo |
-| **GND** | Referência elétrica comum, também chamada de terra | Retorno comum dos sensores e dos componentes de proteção |
-| **5V** | Linha de alimentação de 5 V para circuitos externos, respeitando os limites da placa | Sem uso externo; os sensores piezoelétricos geram seu próprio sinal |
-| **3V3** | Saída de alimentação de 3,3 V para circuitos externos, respeitando os limites da placa | Sem uso |
-| **RST / RESET** | Reinicia o microcontrolador e a execução do programa | Sem ligação externa |
-| **AREF** | Referência externa de tensão para medições analógicas | Sem uso |
-| **VIN** | Entrada de alimentação externa da placa | Sem uso; a alimentação da bateria vem pela USB |
-| **USB** | Conector para alimentação e comunicação com o computador | Alimentação da placa, gravação do firmware e envio das leituras |
-
-### Componentes do projeto
-
-| Componente | O que é | Quantidade para um sensor |
-|---|---|---|
-| Sensor piezoelétrico | Sensor geralmente em forma de disco que produz um sinal elétrico ao ser deformado por uma batida | 6 |
-| Resistor de 1 MΩ | Componente que oferece resistência à corrente; nesta posição fornece um caminho para descarregar o sensor piezoelétrico | 6 |
-| Resistor de 10 kΩ | Resistor colocado no caminho do sinal para limitar a corrente | 6 |
-| Diodo Zener | Diodo usado para limitar a tensão; possui polaridade e precisa ser orientado corretamente | 6 |
-| Protoboard e jumpers | Base de contatos e fios para conectar os componentes sem solda | Conforme a montagem |
-| Cabo USB de dados | Conecta a placa ao computador para alimentação, gravação e comunicação | 1 |
-
-> **Sobre os resistores:** O símbolo **Ω** representa ohm, uma unidade de resistência, seja **10 kΩ = 10.000 Ω** e **1 MΩ = 1.000.000 Ω** e resistores não possuem polaridade;
-
-> **Sobre os Diodos Zener:** A faixa identifica o cátodo ou seja o lado do diodo que deve ser conectado ao resistor de 10 kΩ que por sua vez está conectado a porta analógica A0, enquanto o ânodo vai ao GND.
-
-### Montagem simplificada com apenas um sensor piezoelétrico
-
-A montagem simplificada para testar um único sensor piezoelétrico na entrada A0 é:
-
-```text
-Sensor piezoelétrico (+) ──┬──── [10 kΩ] ───┬── A0
-                           │                │
-                         [1 MΩ]           Zener
-                           │                │
-Sensor piezoelétrico (−) ──┴────────────────┴── GND
-```
-
-| Componente/conexão | Função |
-|---|---|
-| Sensor piezoelétrico | Converte a deformação mecânica da batida em sinal elétrico |
-| Resistor de 1 MΩ | Fica em paralelo ao sensor piezoelétrico e fornece um caminho para descarga |
-| Resistor de 10 kΩ | Fica em série entre o sinal do sensor piezoelétrico e A0, limitando a corrente |
-| Zener | Fica entre o nó de A0 e GND para limitar excursões de tensão |
-| GND | Referência comum do circuito e do Nano |
-
-O positivo do sensor piezoelétrico passa pelo resistor de **10 kΩ** antes de chegar ao A0. O resistor de **1 MΩ** liga o positivo ao negativo do sensor piezoelétrico, que vai ao GND do Arduino. O Zener conecta o ponto entre o resistor de 10 kΩ e A0 ao GND.
-
-Para limitar pulsos positivos nessa disposição, o Zener deve ter o **cátodo (lado da faixa) no nó de A0** e o ânodo no GND. O modelo, a tensão nominal e a orientação efetivamente montada não foram registrados; confirmar esses dados antes de reproduzir a proteção. O artigo de referência cita 5,1 V, mas isso não confirma o componente usado nesta montagem.
-
-### Teste com um sensor piezoelétrico
-
-- `LIMIAR = 80`: uma leitura igual ou superior a esse valor pode disparar uma batida.
-- `INTERVALO_BATIDAS_MS = 100`: intervalo mínimo entre disparos reconhecidos.
-- `TEMPO_LED_MS = 40`: tempo em que o LED fica aceso após um disparo.
-- Uso de `millis()`, sem `delay()` no firmware do projeto.
-- Saída serial: `Batida! Leitura: <valor>`.
-
-A leitura exibida é a amostra que acionou o disparo, e não necessariamente o pico da batida. Diminua o limiar se os toques não forem reconhecidos ou aumente-o se houver disparos espontâneos. O intervalo de 100 ms reduz repetições causadas pela vibração, mas também limita a frequência dos disparos reconhecidos.
-
-## Software usado no projeto original
-
-Segue abaixo o objetivo do projeto original da UFBA
-
-> O objetivo é apresentar e detalhar todo o projeto de uma bateria eletrônica controlada via Arduino, dispensando assim o uso de um módulo para bateria eletrônica, apresentar o conceito de DIY (Do-It-Yourself) que significa "Faça você mesmo!", despertando assim a criatividade e a paixão em criar coisas, e não simplesmente comprá-las.
-
-Referências do projeto original
-
-**Bateria Eletrônica com Arduino**, Arte interativa - IHAC/UFBA, publicado em 25/11/2015<br/>
-Por *Afonso Rios*, *Kaiúska Gândala*, *Keyla Santos* e *Valdemir Souza*<br/>
-https://arteinterativa.wordpress.com/2015/11/25/fase-de-encerramento-construcao-da-bateria-eletronica/
-
-O projetto original descreve seis sensores em um Arduino Uno e esta cadeia funcional de componentes:
-
-```mermaid
-flowchart LR
-    P["Sensores piezoelétricos"] --> A["Arduino Uno"]
-    A -->|USB serial| H["Hairless MIDI-Serial"]
-    H --> V["Porta MIDI virtual"]
-    subgraph R["REAPER"]
-        D["Addictive Drums"]
-    end
-    V -->|MIDI| D
-    D --> S["Saída de áudio"]
-```
-
-> Observação: O trecho de código publicado serve como referência conceitual, não como firmware pronto para compilação.
-
-### Licenciamento e versões no projeto original
-
-O conjunto de programas reúne comunicação serial, transporte MIDI e geração de áudio. As licenças, disponibilidade de versões antigas e a compatibilidade com os sistemas operacionais influenciam a reprodução dessa montagem.
-
-A tabela apresenta suas funções e condições de uso consultadas nas fontes oficiais em **outubro de 2026**:
-
-| Componente usado no original | Responsabilidade | Versão usada no artigo | Versão atual identificada | Status e condições de uso |
-|---|---|---|---|---|
-| [Arduino IDE](https://www.arduino.cc/en/software/) | Compilar e gravar o firmware | Não informada | 2.3.10 | Código aberto; neste projeto usamos PlatformIO. |
-| [Hairless MIDI-Serial Bridge](https://projectgus.github.io/hairless-midiserial/) | Encaminhar mensagens entre serial e MIDI | Não informada | 0.4, última versão de 2012 | OSS (LGPL 2.1); projeto histórico, com alerta do autor sobre incompatibilidade com sistemas modernos. |
-| [LoopBeAudio](https://www.nerds.de/en/loopbeaudio.html), conforme nome citado | O artigo atribui a ele o transporte entre programas; há imprecisão entre áudio e MIDI | Não informada | LoopBeAudio 1.2; [LoopBe1](https://www.nerds.de/en/loopbe1.html) 1.6 é o produto MIDI correspondente | Proprietários. LoopBeAudio é pago, com teste de 60 minutos por reinicialização. LoopBe1 é gratuito para uso pessoal não comercial; uso comercial exige licença após avaliação de 30 dias. [Downloads e condições](https://www.nerds.de/en/download.html) |
-| [REAPER](https://www.reaper.fm/) | Hospedar o instrumento, receber/gravar MIDI e encaminhar áudio | 4.602/x64 | 7.82 | Proprietário e pago; avaliação completa de 60 dias. [Download e avaliação](https://www.reaper.fm/download.php) |
-| [Addictive Drums (XLN Audio)](https://www.xlnaudio.com/products/addictive_drums_2) | Gerar os sons da bateria a partir das notas MIDI | Aparentemente Addictive Drums 1; atualização exata não informada | Addictive Drums 2, atualização 2.6 | Proprietário e pago; trial completo de 10 dias, sem cartão. [Atualização](https://support.xlnaudio.com/hc/en-us/articles/25294308272413-Update-Addictive-Drums-2-version-2-6-Workflow-improvements-resurrected-features-and-more), [trial](https://www.xlnaudio.com/trials) |
-
-O nome **Active Drum** no artigo parece referir-se ao **Addictive Drums**, identificado pelo logotipo na imagem. Além disso, [LoopBeAudio transporta áudio](https://www.nerds.de/en/loopbeaudio.html), enquanto [LoopBe1 transporta MIDI](https://www.nerds.de/en/loopbe1.html).
-
-## Proposta de software para utilização no projeto atual
-
-**Com base nas licenças e na disponibilidade de versões antigas, o caráter didático e "faça você mesmo" pretendido pelo projeto atual e mantendo foco na reprodutibilidade, adotamos uma abordagem de atualizar o software de apoio utilizado no original priorizando software aberto.**
-
-A proposta segue nesse sentido para facilitar o estudo, a adaptação e a reprodução da bateria, sem exigir a compra ou aquisição de licenças separadas. A escolha considera tanto os produtos proprietários quanto a manutenção e a compatibilidade das ferramentas originais.
-
-A organização de componentes reúne a comunicação serial, a interface e a geração de som:
-
-```mermaid
-flowchart LR
-    P["Sensores piezoelétricos"] --> N["Arduino Nano"]
-    N -->|USB serial| S
-    subgraph APP["Aplicativo DrumDuino em Python"]
-        S["pySerial"] --> C["Tratamento das batidas"]
-        U["Interface gráfica"] --> C
-        C --> F["FluidSynth"]
-        B["SoundFont livre"] --> F
-    end
-    F --> O["Saída de áudio"]
-```
-
-### Licenciamento e versões no projeto atual
-
-| Componente proposto | Responsabilidade | Substituição na cadeia original | Status e condições de uso |
-|---|---|---|---|
-| [VS Code](https://code.visualstudio.com/) + [PlatformIO](https://platformio.org/) | Ambiente de desenvolvimento e gerenciamento de projetos embarcados | Substitui o editor e ambiente usados originalmente, mantendo a compatibilidade com o firmware e scripts Python | VS Code gratuito, com distribuição Microsoft sob [licença própria](https://code.visualstudio.com/license) e código-base Code-OSS sob MIT; PlatformIO Core e extensão IDE [Apache 2.0](https://github.com/platformio/platformio-vscode-ide/blob/develop/LICENSE), sem trial para as funções usadas. |
-| [Firmware C++](src/main_v02_piezo.cpp) | Detectar sensor e intensidade e enviar eventos | Processamento das batidas; o link aponta para o código de leitura do sensor | Código do projeto sob [MIT](LICENSE) que permite uso, modificação e redistribuição, inclusive comercial, preservando os avisos da licença.|
-| [uv](https://docs.astral.sh/uv/) + [Python](https://www.python.org/) | Gerenciar Python, ambientes e dependências | Preparação do ambiente do aplicativo | [MIT ou Apache 2.0 à escolha](https://github.com/astral-sh/uv#license) sem cobrança de licença ou prazo de avaliação; Python sob [PSF License 2](https://docs.python.org/3/license.html) |
-| [pySerial](https://pyserial.readthedocs.io/en/latest/) | Receber eventos pela porta serial e controlar o aplicativo | Comunicação direta, dispensando Hairless e porta virtual | pySerial [BSD 3](https://github.com/pyserial/pyserial/blob/master/LICENSE.txt) |
-| Interface própria | Selecionar porta, sons e ajustes e mostrar as batidas | Controles necessários ao teste, sem exigir uma DAW | Código próprio abrangido pela licença [MIT](LICENSE) do projeto. |
-| [FluidSynth](https://www.fluidsynth.org/) | Produzir áudio, acionado diretamente pelo aplicativo | Motor de som no lugar do instrumento proprietário | [LGPL 2.1 ou posterior](https://github.com/FluidSynth/fluidsynth/blob/master/LICENSE) sem cobrança de licença ou trial. A redistribuição deve atender à LGPL e às licenças das dependências. |
-| [SoundFont](https://www.fluidsynth.org/wiki/GettingStarted/) | Fornecer os sons de bateria | Banco de sons a selecionar, com licença e autoria documentadas | Licença depende do banco de sons, não do formato SoundFont, é necessário selecionar um banco com licença livre explícita e registrar autoria e condições. |
-
-> **Sobre OSS:** significa *Open Source Software*, ou software de código aberto. O [pySerial](https://pyserial.readthedocs.io/en/latest/) é uma biblioteca OSS para comunicação serial. O [FluidSynth](https://www.fluidsynth.org/) é um sintetizador OSS sob LGPL, com suporte ao Windows e integração por biblioteca; não possui interface gráfica própria. A licença da SoundFont é independente da licença do sintetizador, por isso o banco de sons também precisa ter licença livre documentada.
-
-> **Sobre o Nano:** O Nano clássico não oferece USB MIDI nativo nessa configuração. Ele enviará um protocolo serial do projeto, por exemplo `HIT,0,735` (sensor 0, leitura 735), e o aplicativo converterá esse evento em nota e intensidade para o sintetizador.
-
-> **Da simplificação:** Essa arquitetura dispensa **REAPER**, **Addictive Drums**, **Hairless** e **drivers de porta MIDI virtual** para o teste sonoro, no entanto, ela não pretende substituir os recursos completos de gravação e edição de uma DAW.
 
 ## Como executar os testes
 
@@ -548,7 +422,7 @@ flowchart LR
 As instruções abaixo executam o **teste de piscar o LED na placa**.
 
 1. Abra a pasta do projeto no Visual Studio Code com PlatformIO.
-2. Com a placa desconectada, confira a montagem do LED.
+2. Este teste usa o LED integrado da placa, sem montagem de LED externo.
 3. Conecte o Nano por USB e selecione o ambiente `blink`.
 4. Compile com **Build** e grave com **Upload**.
 5. O LED deve piscar indicando que o teste foi bem-sucedido.
@@ -581,7 +455,7 @@ pio run -e piezo -t upload
 pio device monitor -b 9600
 ```
 
-Como `default_envs = piezo`, `pio run` também compila esse teste. Para recuperar o teste do LED, use `pio run -e blink -t upload`. Feche o monitor serial antes de gravar novamente ou abrir outro programa que use a mesma porta.
+O ambiente padrão é `hit`; para este teste, selecione `piezo` explicitamente com `-e piezo`. Para recuperar o teste do LED, use `pio run -e blink -t upload`. Feche o monitor serial antes de gravar novamente ou abrir outro programa que use a mesma porta.
 
 ### Teste 3: Monitor serial em Python
 
@@ -594,7 +468,7 @@ O monitor em Python recebe as mensagens do Arduino e mostra as leituras com hor�
 Com o uv instalado, prepare o ambiente do projeto:
 
 ```sh
-uv sync
+uv sync --locked
 ```
 
 #### Localizar a placa
@@ -642,7 +516,7 @@ Execute os comandos na pasta **raiz do projeto**, onde estão `pyproject.toml` e
 Com o uv instalado, prepare o ambiente usando as versões registradas no projeto:
 
 ```sh
-uv sync
+uv sync --locked
 ```
 
 #### Iniciar o backend
@@ -705,6 +579,59 @@ Fechar somente a aba do navegador não encerra o backend nem libera a porta. Se 
 
 O código está separado em `app/backend/server.py` (servidor e leitura serial) e `app/frontend/` (página, estilo e controles).
 
+### Teste 5: Som da bateria
+
+> **Hardware necessário:** Arduino Nano com o firmware `hit`, sensor piezoelétrico montado e saída de áudio do computador.
+
+O backend aciona o FluidSynth diretamente por pyFluidSynth. Prepare a instalação e o mapeamento descritos em [Configuração do projeto](#configuração-do-projeto). Não é necessário abrir o executável do FluidSynth ou uma entrada MIDI externa.
+#### Executar
+
+1. Grave o firmware do ambiente `hit`, com `pio run -e hit -t upload`.
+2. Confira a DLL configurada no `.env` e o arquivo `soundfonts/GeneralUser-GS.sf2`.
+3. Feche o FluidSynth de terminal e os outros monitores seriais.
+4. Encerre qualquer instância anterior do backend com **Ctrl+C** e execute na raiz:
+
+   ```sh
+   uv sync --locked
+   uv run python -m app.backend.server
+   ```
+
+5. Abra [DrumDuino local](http://127.0.0.1:8000) e atualize a página se ela já estava aberta.
+6. Confira **Áudio pronto** e o mapeamento exibido no painel de áudio.
+7. Conecte o Arduino pela interface em **9600 baud** e toque no sensor. O monitor deve mostrar `HIT,0,<leitura>` e a saída de áudio deve reproduzir o som definido em `DRUM_A0` (caixa no modelo).
+
+A intensidade MIDI é fixa em **100**, independentemente da leitura analógica. Pausar a visualização ou limpar o monitor não interrompe o áudio. Após alterar o `.env`, reinicie o backend.
+
+Se aparecer **Áudio indisponível**, confira a mensagem no painel: caminho da DLL, dependências da instalação, SoundFont, nota configurada e saída de áudio. O monitor serial continua disponível mesmo se o áudio não iniciar. A reprodução depende da saída de som padrão do computador.
+
+## Estrutura do projeto e protocolo serial
+
+```text
+.
+├── app/                       # Aplicativo no computador
+│   ├── backend/               # Servidor, leitura serial, configuração e áudio
+│   └── frontend/              # HTML, CSS e JavaScript
+├── soundfonts/                # Banco .sf2 baixado separadamente
+├── .env.example               # Modelo da configuração local
+├── pyproject.toml             # Dependências e versão mínima de Python
+├── uv.lock                    # Versões das dependências
+├── assets/                     # Identidade visual
+├── src/
+│   ├── main_v00_base.cpp       # Exemplo inicial
+│   ├── main_v01_blink.cpp      # Teste do LED integrado
+│   ├── main_v02_piezo.cpp      # Teste de um sensor piezoelétrico
+│   └── main_v03_hit.cpp        # Evento serial HIT
+├── include/                    # Diretório reservado para cabeçalhos
+├── lib/                        # Diretório reservado para bibliotecas
+├── test/                       # Diretório reservado para testes
+├── .vscode/                    # Configurações do editor
+├── platformio.ini              # Ambientes e seleção dos fontes
+├── .gitignore
+└── LICENSE                     # Licença MIT
+```
+
+Para permitir entender a evolução do código, cada versão é mantida em um arquivo separado, facilitando a comparação e o aprendizado. Os ambientes do PlatformIO selecionam quais arquivos serão compilados, conforme a configuração em `platformio.ini`.
+
 ### Protocolo serial de batidas
 
 O ambiente **`hit`**, no arquivo `src/main_v03_hit.cpp`, mantém a detecção e o LED do teste básico e envia uma linha por batida, com os campos separados por vírgula:
@@ -719,7 +646,7 @@ HIT,0,735
 | Sensor | Identificação do sensor, definida por `SENSOR_ID` no firmware | `0` |
 | Leitura | Valor analógico que ultrapassou o limiar, de 0 a 1023 | `735` |
 
-A leitura corresponde à amostra que disparou a detecção, não necessariamente ao pico da batida. Ela não é uma intensidade MIDI: o backend deverá convertê-la para a escala musical. Cada mensagem termina com uma quebra de linha enviada por `Serial.println()`.
+A leitura corresponde à amostra que disparou a detecção, não necessariamente ao pico da batida. Ela não é uma intensidade MIDI: o backend usa intensidade fixa em 100, sem converter essa leitura em intensidade sonora. Cada mensagem termina com uma quebra de linha enviada por `Serial.println()`.
 
 Para compilar e gravar essa versão, feche a conexão serial na interface e qualquer outro monitor, depois execute na raiz:
 
@@ -730,56 +657,108 @@ pio run -e hit -t upload
 
 No monitor Python ou web, conecte novamente a **9600 baud**. Ao tocar no sensor, a mensagem deve aparecer como `HIT,0,<leitura>`. Esses monitores exibem o texto recebido sem precisar de alterações. O firmware `hit` não envia mensagem inicial; aguarde uma batida para ver dados.
 
-O ambiente `piezo` continua disponível e permanece como padrão no `platformio.ini`. Para selecionar `hit` como padrão, use `default_envs = hit`. O formato permite identificar outros sensores por IDs distintos quando eles forem configurados no firmware.
-### Teste 5: Som da bateria
+O ambiente `piezo` continua disponível para o teste básico; `hit` é o padrão no `platformio.ini`. O formato permite identificar outros sensores por IDs distintos quando eles forem configurados no firmware.
 
-O backend usa [pyFluidSynth](https://github.com/nwhitehead/pyfluidsynth) (LGPL) para acionar a biblioteca do FluidSynth diretamente, sem abrir o executável ou uma entrada MIDI externa. O som sai no computador em que o backend está rodando.
+## Software usado no projeto original
 
-#### Configurar entrada e som no .env
+Segue abaixo o objetivo do projeto original da UFBA
 
-Mantenha `FLUIDSYNTH_DLL` com o caminho da DLL e configure o mapeamento das entradas analógicas:
+> O objetivo é apresentar e detalhar todo o projeto de uma bateria eletrônica controlada via Arduino, dispensando assim o uso de um módulo para bateria eletrônica, apresentar o conceito de DIY (Do-It-Yourself) que significa "Faça você mesmo!", despertando assim a criatividade e a paixão em criar coisas, e não simplesmente comprá-las.
 
-```dotenv
-DRUM_A0=38
-DRUM_A1=
-DRUM_A2=
-DRUM_A3=
-DRUM_A4=
-DRUM_A5=
-DRUM_A6=
-DRUM_A7=
+Referências do projeto original
+
+**Bateria Eletrônica com Arduino**, Arte interativa - IHAC/UFBA, publicado em 25/11/2015<br/>
+Por *Afonso Rios*, *Kaiúska Gândala*, *Keyla Santos* e *Valdemir Souza*<br/>
+https://arteinterativa.wordpress.com/2015/11/25/fase-de-encerramento-construcao-da-bateria-eletronica/
+
+O projeto original descreve seis sensores em um Arduino Uno e esta cadeia funcional de componentes:
+
+```mermaid
+flowchart LR
+    P["Sensores piezoelétricos"] --> A["Arduino Uno"]
+    A -->|USB serial| H["Hairless MIDI-Serial"]
+    H --> V["Porta MIDI virtual"]
+    subgraph R["REAPER"]
+        D["Addictive Drums"]
+    end
+    V -->|MIDI| D
+    D --> S["Saída de áudio"]
 ```
 
-| Variável/valor | Significado |
+> Observação: O trecho de código publicado serve como referência conceitual, não como firmware pronto para compilação.
+
+### Licenciamento e versões no projeto original
+
+O conjunto de programas reúne comunicação serial, transporte MIDI e geração de áudio. As licenças, disponibilidade de versões antigas e a compatibilidade com os sistemas operacionais influenciam a reprodução dessa montagem.
+
+A tabela apresenta suas funções e condições de uso consultadas nas fontes oficiais em **outubro de 2026**:
+
+| Componente usado no original | Responsabilidade | Versão usada no artigo | Versão atual identificada | Status e condições de uso |
+|---|---|---|---|---|
+| [Arduino IDE](https://www.arduino.cc/en/software/) | Compilar e gravar o firmware | Não informada | 2.3.10 | Código aberto; neste projeto usamos PlatformIO. |
+| [Hairless MIDI-Serial Bridge](https://projectgus.github.io/hairless-midiserial/) | Encaminhar mensagens entre serial e MIDI | Não informada | 0.4, última versão de 2012 | OSS (LGPL 2.1); projeto histórico, com alerta do autor sobre incompatibilidade com sistemas modernos. |
+| [LoopBeAudio](https://www.nerds.de/en/loopbeaudio.html), conforme nome citado | O artigo atribui a ele o transporte entre programas; há imprecisão entre áudio e MIDI | Não informada | LoopBeAudio 1.2; [LoopBe1](https://www.nerds.de/en/loopbe1.html) 1.6 é o produto MIDI correspondente | Proprietários. LoopBeAudio é pago, com teste de 60 minutos por reinicialização. LoopBe1 é gratuito para uso pessoal não comercial; uso comercial exige licença após avaliação de 30 dias. [Downloads e condições](https://www.nerds.de/en/download.html) |
+| [REAPER](https://www.reaper.fm/) | Hospedar o instrumento, receber/gravar MIDI e encaminhar áudio | 4.602/x64 | 7.82 | Proprietário e pago; avaliação completa de 60 dias. [Download e avaliação](https://www.reaper.fm/download.php) |
+| [Addictive Drums (XLN Audio)](https://www.xlnaudio.com/products/addictive_drums_2) | Gerar os sons da bateria a partir das notas MIDI | Aparentemente Addictive Drums 1; atualização exata não informada | Addictive Drums 2, atualização 2.6 | Proprietário e pago; trial completo de 10 dias, sem cartão. [Atualização](https://support.xlnaudio.com/hc/en-us/articles/25294308272413-Update-Addictive-Drums-2-version-2-6-Workflow-improvements-resurrected-features-and-more), [trial](https://www.xlnaudio.com/trials) |
+
+O nome **Active Drum** no artigo parece referir-se ao **Addictive Drums**, identificado pelo logotipo na imagem. Além disso, [LoopBeAudio transporta áudio](https://www.nerds.de/en/loopbeaudio.html), enquanto [LoopBe1 transporta MIDI](https://www.nerds.de/en/loopbe1.html).
+
+## Proposta de software para utilização no projeto atual
+
+**Com base nas licenças e na disponibilidade de versões antigas, no caráter didático e "faça você mesmo" pretendido pelo projeto atual e mantendo foco na reprodutibilidade, adotamos uma abordagem de atualizar o software de apoio utilizado no original priorizando software aberto.**
+
+A proposta segue nesse sentido para **facilitar o estudo, a adaptação e a reprodução** da bateria, **sem exigir a compra ou aquisição de licenças** separadas. A escolha considera tanto os produtos proprietários quanto a manutenção e a compatibilidade das ferramentas originais.
+
+A organização de componentes reúne a comunicação serial, a interface e a geração de som:
+
+```mermaid
+flowchart LR
+    P["Sensores piezoelétricos"] --> N["Arduino Nano"]
+    N -->|USB serial| S
+    subgraph APP["Aplicativo DrumDuino em Python"]
+        S["pySerial"] --> C["Tratamento das batidas"]
+        U["Interface gráfica"] --> C
+        C --> F["FluidSynth"]
+        B["SoundFont livre"] --> F
+    end
+    F --> O["Saída de áudio"]
+```
+
+### Licenciamento e versões no projeto atual
+
+| Componente proposto | Responsabilidade | Substituição na cadeia original | Status e condições de uso |
+|---|---|---|---|
+| [VS Code](https://code.visualstudio.com/) + [PlatformIO](https://platformio.org/) | Ambiente de desenvolvimento e gerenciamento de projetos embarcados | Substitui o editor e ambiente usados originalmente, mantendo a compatibilidade com o firmware e scripts Python | VS Code gratuito, com distribuição Microsoft sob [licença própria](https://code.visualstudio.com/license) e código-base Code-OSS sob MIT; PlatformIO Core e extensão IDE [Apache 2.0](https://github.com/platformio/platformio-vscode-ide/blob/develop/LICENSE), sem trial para as funções usadas. |
+| [Firmware C++](src/main_v03_hit.cpp) | Detectar sensor e intensidade e enviar eventos | Processamento das batidas; o link aponta para o código de leitura do sensor | Código do projeto sob [MIT](LICENSE) que permite uso, modificação e redistribuição, inclusive comercial, preservando os avisos da licença.|
+| [uv](https://docs.astral.sh/uv/) + [Python](https://www.python.org/) | Gerenciar Python, ambientes e dependências | Preparação do ambiente do aplicativo | [MIT ou Apache 2.0 à escolha](https://github.com/astral-sh/uv#license) sem cobrança de licença ou prazo de avaliação; Python sob [PSF License 2](https://docs.python.org/3/license.html) |
+| [pySerial](https://pyserial.readthedocs.io/en/latest/) | Receber eventos pela porta serial e controlar o aplicativo | Comunicação direta, dispensando Hairless e porta virtual | pySerial [BSD 3](https://github.com/pyserial/pyserial/blob/master/LICENSE.txt) |
+| Interface própria | Selecionar porta, sons e ajustes e mostrar as batidas | Controles necessários ao teste, sem exigir uma DAW | Código próprio abrangido pela licença [MIT](LICENSE) do projeto. |
+| [FluidSynth](https://www.fluidsynth.org/) | Produzir áudio, acionado diretamente pelo aplicativo | Motor de som no lugar do instrumento proprietário | [LGPL 2.1 ou posterior](https://github.com/FluidSynth/fluidsynth/blob/master/LICENSE) sem cobrança de licença ou trial. A redistribuição deve atender à LGPL e às licenças das dependências. |
+| [SoundFont](https://www.fluidsynth.org/wiki/GettingStarted/) | Fornecer os sons de bateria | Banco GeneralUser GS, com licença e autoria documentadas | [Licença própria do GeneralUser GS](https://github.com/mrbumpy409/GeneralUser-GS/blob/main/documentation/LICENSE.txt): gratuito, permite criação musical pessoal/comercial e uso em software; ver as observações sobre origem das amostras na preparação da SoundFont. |
+
+> **Sobre OSS:** significa *Open Source Software*, ou software de código aberto. O [pySerial](https://pyserial.readthedocs.io/en/latest/) é uma biblioteca OSS para comunicação serial. O [FluidSynth](https://www.fluidsynth.org/) é um sintetizador OSS sob LGPL, com suporte ao Windows e integração por biblioteca; não possui interface gráfica própria. A licença da SoundFont é independente da licença do sintetizador, por isso o banco de sons também precisa ter licença livre documentada.
+
+> **Sobre o Nano:** O Nano clássico não oferece USB MIDI nativo nessa configuração. Ele envia o protocolo serial do projeto, por exemplo `HIT,0,735` (sensor 0, leitura 735), e o aplicativo associa o sensor à nota configurada, com intensidade fixa em 100.
+
+> **Da simplificação:** Essa arquitetura dispensa **REAPER**, **Addictive Drums**, **Hairless** e **drivers de porta MIDI virtual** para o teste sonoro, no entanto, ela não pretende substituir os recursos completos de gravação e edição de uma DAW.
+
+## Problemas comuns
+
+| Sintoma | O que conferir |
 |---|---|
-| `DRUM_A0=38` | O evento `HIT,0,<leitura>` aciona a nota 38: caixa |
-| `DRUM_A1=36` | Exemplo: o evento `HIT,1,<leitura>` aciona a nota 36: bumbo |
-| `DRUM_A2=42` | Exemplo: o evento `HIT,2,<leitura>` aciona a nota 42: chimbal fechado |
-| Valor vazio | Não reproduz som para essa entrada |
+| Porta 8000 ocupada / erro 10048 | Encerre a outra instância do backend com Ctrl+C antes de iniciar outra |
+| Porta serial não abre | Desconecte o outro monitor ou aplicativo que usa a placa; confira o cabo e a porta selecionada |
+| Arduino não aparece na lista | Use cabo USB de dados, atualize as portas e confira drivers no Windows ou permissões no Ubuntu |
+| Áudio indisponível | Leia o motivo no painel; confira DLL, dependências, arquitetura do Python e arquivo da SoundFont |
+| Há mensagens, mas não há som | Use firmware `hit`, confira `DRUM_A0`, o indicador de áudio e a saída/volume do computador |
+| “Verificando áudio…” não muda | Confira o backend, reinicie-o após atualizar o código e recarregue a página com Ctrl+F5 |
+| Alterações do .env não aparecem | Encerre e inicie novamente o backend |
+| FluidSynth de terminal reclama de entrada MIDI | Use `-n` no teste isolado; o backend abre somente a saída de áudio |
+| Nenhuma mensagem logo após conectar | O firmware `hit` só transmite ao detectar batidas; abrir a serial também pode reiniciar a placa |
+| Fechar a aba não libera a porta | Use Desconectar na página ou Ctrl+C no terminal do backend |
 
-As notas seguem o kit padrão de percussão da SoundFont GeneralUser GS. Os valores aceitos vão de 0 a 127. A0 usa 38 como padrão se a variável estiver ausente; uma variável vazia desabilita seu som. O `.env.example` contém o modelo.
+Para investigar mensagens sem reproduzir áudio, use o monitor Python de terminal. Apenas um monitor pode abrir a mesma porta serial por vez.
 
-O ID do protocolo corresponde ao número da entrada: `0` representa A0, `1` representa A1, até `7` para A7. Esse mapeamento escolhe o som no backend; não acrescenta sensores ao firmware. O firmware `hit` disponibilizado lê o sensor 0. Outros sensores exigem sua própria leitura e identificação no Arduino.
-
-#### Executar
-
-1. Grave o firmware do ambiente `hit`, conforme a seção do protocolo serial.
-2. Confira a DLL configurada no `.env` e o arquivo `soundfonts/GeneralUser-GS.sf2`.
-3. Feche o FluidSynth de terminal e os outros monitores seriais.
-4. Encerre qualquer instância anterior do backend com **Ctrl+C** e execute na raiz:
-
-   ```sh
-   uv sync --locked
-   uv run python -m app.backend.server
-   ```
-
-5. Abra [DrumDuino local](http://127.0.0.1:8000) e atualize a página se ela já estava aberta.
-6. Confira **Áudio pronto** e o mapeamento exibido no painel de áudio.
-7. Conecte o Arduino pela interface em **9600 baud** e toque no sensor. O monitor deve mostrar `HIT,0,<leitura>` e a saída de áudio deve reproduzir a caixa.
-
-A intensidade MIDI é fixa em **100**, independentemente da leitura analógica. Pausar a visualização ou limpar o monitor não interrompe o áudio. Após alterar o `.env`, reinicie o backend.
-
-Se aparecer **Áudio indisponível**, confira a mensagem no painel: caminho da DLL, dependências da instalação, SoundFont, nota configurada e saída de áudio. O monitor serial continua disponível mesmo se o áudio não iniciar. A reprodução depende da saída de som padrão do computador.
 ## Licença
 
 O código deste projeto é disponibilizado sob a licença [MIT](LICENSE).
