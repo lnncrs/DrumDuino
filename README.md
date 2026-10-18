@@ -51,7 +51,7 @@ default_envs = piezo
 | `blink` | `main_v01_blink.cpp` | LED aceso por 500 ms e apagado por 500 ms |
 | `piezo` (padrão) | `main_v02_piezo.cpp` | Detecção de batidas, LED e mensagens na serial |
 
-## Ambiente de desenvolvimento
+## Ambiente de desenvolvimento do projeto
 
 São necessárias algumas ferramentas para abrir o código, compilá-lo (transformá-lo em um programa para a placa que chamamos de **firmware**), gravá-lo na placa e usar de fato o projeto como uma bateria virtual.
 
@@ -341,7 +341,7 @@ flowchart LR
 
 > Observação: O trecho de código publicado serve como referência conceitual, não como firmware pronto para compilação.
 
-### Softwares utilizados no projeto original
+### Licenciamento e versões no projeto original
 
 O conjunto de programas reúne comunicação serial, transporte MIDI e geração de áudio. As licenças, disponibilidade de versões antigas e a compatibilidade com os sistemas operacionais influenciam a reprodução dessa montagem.
 
@@ -378,6 +378,8 @@ flowchart LR
     F --> O["Saída de áudio"]
 ```
 
+### Licenciamento e versões no projeto atual
+
 | Componente proposto | Responsabilidade | Substituição na cadeia original | Status e condições de uso |
 |---|---|---|---|
 | [VS Code](https://code.visualstudio.com/) + [PlatformIO](https://platformio.org/) | Ambiente de desenvolvimento e gerenciamento de projetos embarcados | Substitui o editor e ambiente usados originalmente, mantendo a compatibilidade com o firmware e scripts Python | VS Code gratuito, com distribuição Microsoft sob [licença própria](https://code.visualstudio.com/license) e código-base Code-OSS sob MIT; PlatformIO Core e extensão IDE [Apache 2.0](https://github.com/platformio/platformio-vscode-ide/blob/develop/LICENSE), sem trial para as funções usadas. |
@@ -394,7 +396,7 @@ flowchart LR
 
 > **Da simplificação:** Essa arquitetura dispensa **REAPER**, **Addictive Drums**, **Hairless** e **drivers de porta MIDI virtual** para o teste sonoro, no entanto, ela não pretende substituir os recursos completos de gravação e edição de uma DAW.
 
-## Como executar
+## Como executar o teste
 
 As instruções abaixo executam o **teste de um sensor piezoelétrico**, com indicação por LED e monitor serial.
 
