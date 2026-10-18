@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>DrumDuino · Monitor</title>
     <link rel="stylesheet" href="/static/style.css" />
-    <script src="/static/app.js" defer></script>
+    <script src="/static/app.js?v=audio" defer></script>
   </head>
   <body>
     <header>
@@ -16,6 +16,11 @@
       <span id="status" class="badge">Verificando servidor</span>
     </header>
     <main>
+      <section class="card">
+        <h2>Áudio da bateria</h2>
+        <p id="audio-status" role="status">Verificando áudio…</p>
+        <p id="audio-mapping">Mapeamento definido no .env · Intensidade fixa</p>
+      </section>
       <section class="card">
         <h2>Conexão com a placa</h2>
         <p>
@@ -80,7 +85,7 @@ Aguardando conexão com a placa.</pre
       </section>
     </main>
     <footer>
-      Arduino Nano · Comunicação USB serial · Áudio não habilitado
+      Arduino Nano · Comunicação USB serial · Som gerado no computador
     </footer>
   </body>
 </html>

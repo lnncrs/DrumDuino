@@ -284,3 +284,4 @@ $RECYCLE.BIN/
 .vscode/launch.json
 .vscode/ipch
 _other/
+soundfonts/*.sf2

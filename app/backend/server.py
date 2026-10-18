@@ -14,12 +14,16 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from serial.tools import list_ports
 
+from app.backend import config
+from app.backend.audio import Audio
+
 frontend = Path(__file__).resolve().parents[1] / "frontend"
 connection = None
 messages = deque(maxlen=500)
 sequence = 0
 error = ""
 lock = asyncio.Lock()
+audio = Audio()
 
 
 def record(text):
@@ -52,7 +56,13 @@ async def read_serial():
                     pending.extend(connection.read(min(connection.in_waiting, 4096)))
                     while b"\n" in pending:
                         line, _, pending = pending.partition(b"\n")
-                        record(line.rstrip(b"\r").decode("utf-8", errors="replace"))
+                        message = line.rstrip(b"\r").decode("utf-8", errors="replace")
+                        record(message)
+                        note = audio.hit(message)
+                        if note is not None:
+                            asyncio.get_running_loop().call_later(
+                                0.08, audio.stop_note, note
+                            )
                     if len(pending) > 16384:
                         pending.clear()
                         record("Aviso: dados sem quebra de linha descartados.")
@@ -64,6 +74,7 @@ async def read_serial():
 
 @asynccontextmanager
 async def lifespan(app):
+    await asyncio.to_thread(audio.start)
     task = asyncio.create_task(read_serial())
     try:
         yield
@@ -74,9 +85,12 @@ async def lifespan(app):
         except asyncio.CancelledError:
             pass
         disconnect()
+        audio.close()
 
 
 app = FastAPI(lifespan=lifespan)
+app.state.fluidsynth_dll = config.FLUIDSYNTH_DLL
+app.state.soundfont = config.SOUNDFONT
 app.mount("/static", StaticFiles(directory=frontend), name="static")
 
 
@@ -97,7 +111,9 @@ async def local_requests(request: Request, call_next):
             {"detail": "Abra a interface pelo endereço local do servidor."},
             status_code=403,
         )
-    return await call_next(request)
+    response = await call_next(request)
+    response.headers["Cache-Control"] = "no-store"
+    return response
 
 
 @app.get("/")
@@ -115,6 +131,7 @@ async def state(after: int = 0):
     return {
         "port": connection.port if connection else None,
         "error": error,
+        "audio": audio.status(),
         "total": sequence,
         "messages": [m for m in messages if m["id"] > after],
     }

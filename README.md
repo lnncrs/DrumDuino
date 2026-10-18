@@ -24,7 +24,8 @@ O **DrumDuino** é um projeto didático de bateria eletrônica baseado no Arduin
 ├── src/
 │   ├── main_v00_base.cpp       # Exemplo inicial
 │   ├── main_v01_blink.cpp      # Teste do LED integrado
-│   └── main_v02_piezo.cpp      # Teste de um sensor piezoelétrico
+│   ├── main_v02_piezo.cpp      # Teste de um sensor piezoelétrico
+│   └── main_v03_hit.cpp        # Evento serial HIT
 ├── include/                    # Diretório reservado para cabeçalhos
 ├── lib/                        # Diretório reservado para bibliotecas
 ├── test/                       # Diretório reservado para testes
@@ -49,7 +50,8 @@ default_envs = piezo
 |---|---|---|
 | `base` | `main_v00_base.cpp` | Exemplo inicial, sem saída visível |
 | `blink` | `main_v01_blink.cpp` | LED aceso por 500 ms e apagado por 500 ms |
-| `piezo` (padrão) | `main_v02_piezo.cpp` | Detecção de batidas, LED e mensagens na serial |
+| `piezo` | `main_v02_piezo.cpp` | Detecção de batidas, LED e mensagens na serial |
+| `hit` (padrão) | `main_v03_hit.cpp` | Detecção de batidas, LED e evento serial `HIT` |
 
 ## Ambiente de desenvolvimento do projeto
 
@@ -171,11 +173,13 @@ Referência: [Guia oficial de download do FluidSynth](https://www.fluidsynth.org
 1. Na página oficial, siga o link dos binários para Windows nas versões do GitHub.
 2. Baixe um pacote com a mesma arquitetura do Python, por exemplo, ambos de 64 bits.
 3. Extraia o pacote em uma pasta permanente. A biblioteca e suas dependências precisam ficar acessíveis ao aplicativo Python.
-4. Para conferir o executável, abra o PowerShell na pasta que contém `fluidsynth.exe` e execute:
+4. Para conferir o executável, abra o PowerShell na pasta que contém `fluidsynth.exe` (em geral dentro da pasta /bin dos arquivos extraídos) e execute:
 
    ```powershell
    .\fluidsynth.exe --version
    ```
+
+O comando de versão verifica o executável; a integração da biblioteca com Python é uma verificação separada.
 
 #### Linux (Ubuntu)
 
@@ -189,10 +193,149 @@ fluidsynth --version
 
 O comando de versão verifica o executável; a integração da biblioteca com Python é uma verificação separada.
 
-Para gerar som, o FluidSynth também precisa de uma **SoundFont**, arquivo que contém os sons dos instrumentos. O banco escolhido deve ter licença livre e origem documentadas.
+#### Configurar o caminho do FluidSynth
 
-A [introdução oficial](https://www.fluidsynth.org/wiki/GettingStarted/) explica esses arquivos. Nenhuma SoundFont está incluída neste repositório.
+Copie `.env.example` para `.env` na raiz do projeto. No arquivo `.env`, informe o caminho completo da biblioteca nativa do FluidSynth, não o executável:
 
+```dotenv
+FLUIDSYNTH_DLL="C:/caminho/fluidsynth/bin/libfluidsynth-3.dll"
+```
+
+No Windows, use barras `/` e mantenha as outras DLLs na pasta original. O backend lê essa configuração automaticamente ao iniciar; reinicie-o após alterar o arquivo. O `.env` é local e está ignorado pelo Git, enquanto `.env.example` serve de modelo para outros computadores.
+
+A SoundFont usa o caminho fixo `soundfonts/GeneralUser-GS.sf2`, relativo à raiz do projeto, sem variável no `.env`. Esses caminhos preparam a configuração do áudio; o monitor serial continua funcionando sem o FluidSynth.
+### Preparar SoundFont
+
+Uma **SoundFont** é um banco de sons em um arquivo, normalmente com extensão `.sf2`. O **FluidSynth** é o motor que lê esse arquivo para produzir áudio. Para a bateria, usaremos o banco **GeneralUser GS**, de *S. Christian Collins*, que inclui instrumentos e 13 kits de bateria e é compatível com FluidSynth **2.3 ou superior**.
+
+#### Baixar o banco de sons
+
+1. Acesse a [página oficial do GeneralUser GS](https://schristiancollins.com/generaluser).
+2. Na seção **Download → Current**, baixe **GeneralUser GS 2.0.3** com sua documentação.
+3. Extraia o arquivo ZIP. No Windows, clique com o botão direito e escolha **Extrair Tudo**; no Ubuntu, use o gerenciador de arquivos.
+4. Localize o arquivo `.sf2`. Ele é o banco de sons; não precisa de instalador.
+5. Preserve a documentação do pacote, especialmente `LICENSE.txt`, com a licença e a identificação do autor.
+
+#### Organizar os arquivos no projeto
+
+Depois de copiar o repositório para seu computador, localize a pasta **`soundfonts`** na raiz do projeto, ao lado de `pyproject.toml` e `platformio.ini`.
+
+Copie o arquivo `.sf2` para essa pasta e renomeie-o como **`GeneralUser-GS.sf2`**, para usar o mesmo caminho nos exemplos. Guarde a documentação extraída em uma subpasta:
+
+```text
+DrumDuino/
+├── platformio.ini
+├── pyproject.toml
+└── soundfonts/
+    ├── GeneralUser-GS.sf2
+    └── documentation/          # Licença e documentação do pacote original
+```
+
+O caminho do banco de sons será **`soundfonts/GeneralUser-GS.sf2`**, tanto no Windows quanto no Ubuntu. Nenhuma SoundFont está incluída no repositório; o download é feito separadamente. Copie o caminho completo do arquivo `soundfonts/GeneralUser-GS.sf2` para usá-lo no FluidSynth.
+
+#### Conferir o carregamento no FluidSynth
+
+Na pasta onde o FluidSynth está instalado, abra um terminal e execute:
+
+```sh
+fluidsynth "<caminho completo para o arquivo soundfonts/GeneralUser-GS.sf2>"
+```
+
+Se o comando não for encontrado, use o caminho completo do executável instalado. No PowerShell, para um caminho com espaços, use `&` antes do caminho entre aspas.
+
+No terminal interativo do FluidSynth, digite `fonts` e pressione Enter para conferir se o banco foi carregado.
+
+Se o banco aparecer na lista, ele foi carregado. Para testar a caixa da bateria:
+
+```text
+prog 9 0
+noteon 9 38 100
+```
+
+Você deve ouvir o som da caixa da bateria se o banco de sons estiver carregado corretamente.
+
+Digite `quit` para encerrar. Esse teste verifica o carregamento do arquivo; não conecta o Arduino nem faz a bateria tocar.
+
+##### Protocolo serial de batidas
+
+O ambiente **`hit`**, no arquivo `src/main_v03_hit.cpp`, mantém a detecção e o LED do teste básico e envia uma linha por batida, com os campos separados por vírgula:
+
+```text
+HIT,0,735
+```
+
+| Campo | Significado | Exemplo |
+|---|---|---|
+| Evento | Tipo da mensagem; `HIT` identifica uma batida | `HIT` |
+| Sensor | Identificação do sensor, definida por `SENSOR_ID` no firmware | `0` |
+| Leitura | Valor analógico que ultrapassou o limiar, de 0 a 1023 | `735` |
+
+A leitura corresponde à amostra que disparou a detecção, não necessariamente ao pico da batida. Ela não é uma intensidade MIDI: o backend deverá convertê-la para a escala musical. Cada mensagem termina com uma quebra de linha enviada por `Serial.println()`.
+
+Para compilar e gravar essa versão, feche a conexão serial na interface e qualquer outro monitor, depois execute na raiz:
+
+```sh
+pio run -e hit
+pio run -e hit -t upload
+```
+
+No monitor Python ou web, conecte novamente a **9600 baud**. Ao tocar no sensor, a mensagem deve aparecer como `HIT,0,<leitura>`. Esses monitores exibem o texto recebido sem precisar de alterações. O firmware `hit` não envia mensagem inicial; aguarde uma batida para ver dados.
+
+O ambiente `piezo` continua disponível e permanece como padrão no `platformio.ini`. Para selecionar `hit` como padrão, use `default_envs = hit`. O formato permite identificar outros sensores por IDs distintos quando eles forem configurados no firmware.
+### Teste 5: Som da bateria
+
+O backend usa [pyFluidSynth](https://github.com/nwhitehead/pyfluidsynth) (LGPL) para acionar a biblioteca do FluidSynth diretamente, sem abrir o executável ou uma entrada MIDI externa. O som sai no computador em que o backend está rodando.
+
+#### Configurar entrada e som no .env
+
+Mantenha `FLUIDSYNTH_DLL` com o caminho da DLL e configure o mapeamento das entradas analógicas:
+
+```dotenv
+DRUM_A0=38
+DRUM_A1=
+DRUM_A2=
+DRUM_A3=
+DRUM_A4=
+DRUM_A5=
+DRUM_A6=
+DRUM_A7=
+```
+
+| Variável/valor | Significado |
+|---|---|
+| `DRUM_A0=38` | O evento `HIT,0,<leitura>` aciona a nota 38: caixa |
+| `DRUM_A1=36` | Exemplo: o evento `HIT,1,<leitura>` aciona a nota 36: bumbo |
+| `DRUM_A2=42` | Exemplo: o evento `HIT,2,<leitura>` aciona a nota 42: chimbal fechado |
+| Valor vazio | Não reproduz som para essa entrada |
+
+As notas seguem o kit padrão de percussão da SoundFont GeneralUser GS. Os valores aceitos vão de 0 a 127. A0 usa 38 como padrão se a variável estiver ausente; uma variável vazia desabilita seu som. O `.env.example` contém o modelo.
+
+O ID do protocolo corresponde ao número da entrada: `0` representa A0, `1` representa A1, até `7` para A7. Esse mapeamento escolhe o som no backend; não acrescenta sensores ao firmware. O firmware `hit` disponibilizado lê o sensor 0. Outros sensores exigem sua própria leitura e identificação no Arduino.
+
+#### Executar
+
+1. Grave o firmware do ambiente `hit`, conforme a seção do protocolo serial.
+2. Confira a DLL configurada no `.env` e o arquivo `soundfonts/GeneralUser-GS.sf2`.
+3. Feche o FluidSynth de terminal e os outros monitores seriais.
+4. Encerre qualquer instância anterior do backend com **Ctrl+C** e execute na raiz:
+
+   ```sh
+   uv sync --locked
+   uv run python -m app.backend.server
+   ```
+
+5. Abra [DrumDuino local](http://127.0.0.1:8000) e atualize a página se ela já estava aberta.
+6. Confira **Áudio pronto** e o mapeamento exibido no painel de áudio.
+7. Conecte o Arduino pela interface em **9600 baud** e toque no sensor. O monitor deve mostrar `HIT,0,<leitura>` e a saída de áudio deve reproduzir a caixa.
+
+A intensidade MIDI é fixa em **100**, independentemente da leitura analógica. Pausar a visualização ou limpar o monitor não interrompe o áudio. Após alterar o `.env`, reinicie o backend.
+
+Se aparecer **Áudio indisponível**, confira a mensagem no painel: caminho da DLL, dependências da instalação, SoundFont, nota configurada e saída de áudio. O monitor serial continua disponível mesmo se o áudio não iniciar. A reprodução depende da saída de som padrão do computador.
+## Licença e referência
+
+O GeneralUser GS é gratuito e possui **licença própria**, separada da licença do FluidSynth. O autor permite criação musical pessoal e comercial, uso em projetos de software e modificações. A licença também registra limitações no rastreamento da origem de algumas amostras; por isso, não deve ser apresentada como uma licença OSS padronizada nem como garantia de origem integralmente rastreável.
+
+Preserve os arquivos de licença e autoria do pacote. Referências: [GeneralUser GS - página oficial](https://schristiancollins.com/generaluser), [licença do banco](https://github.com/mrbumpy409/GeneralUser-GS/blob/main/documentation/LICENSE.txt) e [introdução ao FluidSynth e SoundFonts](https://www.fluidsynth.org/wiki/GettingStarted/).
 ### Copiar o projeto do GitHub
 
 O **GitHub** é um serviço que hospeda projetos e permite compartilhar arquivos e seu histórico de alterações. Um **repositório** é o conjunto desses arquivos. **Clonar** significa criar uma cópia do repositório no seu computador usando o Git.
@@ -392,7 +535,7 @@ flowchart LR
 
 > **Sobre OSS:** significa *Open Source Software*, ou software de código aberto. O [pySerial](https://pyserial.readthedocs.io/en/latest/) é uma biblioteca OSS para comunicação serial. O [FluidSynth](https://www.fluidsynth.org/) é um sintetizador OSS sob LGPL, com suporte ao Windows e integração por biblioteca; não possui interface gráfica própria. A licença da SoundFont é independente da licença do sintetizador, por isso o banco de sons também precisa ter licença livre documentada.
 
-> **Sobre o Nano:** O Nano clássico não oferece USB MIDI nativo nessa configuração. Ele enviará um protocolo serial do projeto, por exemplo `HIT,0,735` (sensor 0, pico 735), e o aplicativo converterá esse evento em nota e intensidade para o sintetizador.
+> **Sobre o Nano:** O Nano clássico não oferece USB MIDI nativo nessa configuração. Ele enviará um protocolo serial do projeto, por exemplo `HIT,0,735` (sensor 0, leitura 735), e o aplicativo converterá esse evento em nota e intensidade para o sintetizador.
 
 > **Da simplificação:** Essa arquitetura dispensa **REAPER**, **Addictive Drums**, **Hairless** e **drivers de porta MIDI virtual** para o teste sonoro, no entanto, ela não pretende substituir os recursos completos de gravação e edição de uma DAW.
 
@@ -542,7 +685,7 @@ Toque nos sensores da bateria. O monitor da página deve mostrar mensagens com h
 [14:30:05] Batida! Leitura: 735
 ```
 
-O horário e o valor variam. Ver as mensagens na página confirma o caminho **Arduino → USB → backend → frontend**. O teste não produz áudio.
+O horário e o valor variam. Ver as mensagens na página confirma o caminho **Arduino → USB → backend → frontend**. Com o áudio pronto e o firmware `hit`, as batidas também produzem o som configurado. As mensagens do firmware `piezo` continuam visíveis, mas não acionam som.
 
 | Controle | Como testar | Resultado esperado |
 |---|---|---|
@@ -562,6 +705,81 @@ Fechar somente a aba do navegador não encerra o backend nem libera a porta. Se 
 
 O código está separado em `app/backend/server.py` (servidor e leitura serial) e `app/frontend/` (página, estilo e controles).
 
+### Protocolo serial de batidas
+
+O ambiente **`hit`**, no arquivo `src/main_v03_hit.cpp`, mantém a detecção e o LED do teste básico e envia uma linha por batida, com os campos separados por vírgula:
+
+```text
+HIT,0,735
+```
+
+| Campo | Significado | Exemplo |
+|---|---|---|
+| Evento | Tipo da mensagem; `HIT` identifica uma batida | `HIT` |
+| Sensor | Identificação do sensor, definida por `SENSOR_ID` no firmware | `0` |
+| Leitura | Valor analógico que ultrapassou o limiar, de 0 a 1023 | `735` |
+
+A leitura corresponde à amostra que disparou a detecção, não necessariamente ao pico da batida. Ela não é uma intensidade MIDI: o backend deverá convertê-la para a escala musical. Cada mensagem termina com uma quebra de linha enviada por `Serial.println()`.
+
+Para compilar e gravar essa versão, feche a conexão serial na interface e qualquer outro monitor, depois execute na raiz:
+
+```sh
+pio run -e hit
+pio run -e hit -t upload
+```
+
+No monitor Python ou web, conecte novamente a **9600 baud**. Ao tocar no sensor, a mensagem deve aparecer como `HIT,0,<leitura>`. Esses monitores exibem o texto recebido sem precisar de alterações. O firmware `hit` não envia mensagem inicial; aguarde uma batida para ver dados.
+
+O ambiente `piezo` continua disponível e permanece como padrão no `platformio.ini`. Para selecionar `hit` como padrão, use `default_envs = hit`. O formato permite identificar outros sensores por IDs distintos quando eles forem configurados no firmware.
+### Teste 5: Som da bateria
+
+O backend usa [pyFluidSynth](https://github.com/nwhitehead/pyfluidsynth) (LGPL) para acionar a biblioteca do FluidSynth diretamente, sem abrir o executável ou uma entrada MIDI externa. O som sai no computador em que o backend está rodando.
+
+#### Configurar entrada e som no .env
+
+Mantenha `FLUIDSYNTH_DLL` com o caminho da DLL e configure o mapeamento das entradas analógicas:
+
+```dotenv
+DRUM_A0=38
+DRUM_A1=
+DRUM_A2=
+DRUM_A3=
+DRUM_A4=
+DRUM_A5=
+DRUM_A6=
+DRUM_A7=
+```
+
+| Variável/valor | Significado |
+|---|---|
+| `DRUM_A0=38` | O evento `HIT,0,<leitura>` aciona a nota 38: caixa |
+| `DRUM_A1=36` | Exemplo: o evento `HIT,1,<leitura>` aciona a nota 36: bumbo |
+| `DRUM_A2=42` | Exemplo: o evento `HIT,2,<leitura>` aciona a nota 42: chimbal fechado |
+| Valor vazio | Não reproduz som para essa entrada |
+
+As notas seguem o kit padrão de percussão da SoundFont GeneralUser GS. Os valores aceitos vão de 0 a 127. A0 usa 38 como padrão se a variável estiver ausente; uma variável vazia desabilita seu som. O `.env.example` contém o modelo.
+
+O ID do protocolo corresponde ao número da entrada: `0` representa A0, `1` representa A1, até `7` para A7. Esse mapeamento escolhe o som no backend; não acrescenta sensores ao firmware. O firmware `hit` disponibilizado lê o sensor 0. Outros sensores exigem sua própria leitura e identificação no Arduino.
+
+#### Executar
+
+1. Grave o firmware do ambiente `hit`, conforme a seção do protocolo serial.
+2. Confira a DLL configurada no `.env` e o arquivo `soundfonts/GeneralUser-GS.sf2`.
+3. Feche o FluidSynth de terminal e os outros monitores seriais.
+4. Encerre qualquer instância anterior do backend com **Ctrl+C** e execute na raiz:
+
+   ```sh
+   uv sync --locked
+   uv run python -m app.backend.server
+   ```
+
+5. Abra [DrumDuino local](http://127.0.0.1:8000) e atualize a página se ela já estava aberta.
+6. Confira **Áudio pronto** e o mapeamento exibido no painel de áudio.
+7. Conecte o Arduino pela interface em **9600 baud** e toque no sensor. O monitor deve mostrar `HIT,0,<leitura>` e a saída de áudio deve reproduzir a caixa.
+
+A intensidade MIDI é fixa em **100**, independentemente da leitura analógica. Pausar a visualização ou limpar o monitor não interrompe o áudio. Após alterar o `.env`, reinicie o backend.
+
+Se aparecer **Áudio indisponível**, confira a mensagem no painel: caminho da DLL, dependências da instalação, SoundFont, nota configurada e saída de áudio. O monitor serial continua disponível mesmo se o áudio não iniciar. A reprodução depende da saída de som padrão do computador.
 ## Licença
 
 O código deste projeto é disponibilizado sob a licença [MIT](LICENSE).

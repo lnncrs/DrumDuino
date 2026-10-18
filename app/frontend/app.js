@@ -62,6 +62,13 @@ async function update() {
       cursor = 0;
       rows = [];
     }
+    $("audio-status").textContent = state.audio.ready
+      ? "Áudio pronto · FluidSynth conectado"
+      : state.audio.error || "Áudio indisponível";
+    $("audio-mapping").textContent =
+      Object.entries(state.audio.mapping)
+        .map(([input, note]) => `${input} → nota ${note}`)
+        .join(" · ") || "Nenhuma entrada com som configurado";
     connected = Boolean(state.port);
     $("status").textContent = connected
       ? `Conectado · ${state.port}`
@@ -81,6 +88,7 @@ async function update() {
     if (state.error) notice(state.error, true);
   } catch {
     $("status").textContent = "Servidor indisponível";
+    $("audio-status").textContent = "Sem comunicação com o backend";
     $("status").classList.remove("online");
     $("connect").disabled = true;
     $("disconnect").disabled = true;
