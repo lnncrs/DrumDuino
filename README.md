@@ -13,6 +13,7 @@ lenin.cristi@aluno.ufabc.edu.br
 ## Sumário
 
 - [Resumo e funcionamento](#resumo)
+- [Início rápido](#início-rápido)
 - [Hardware e montagem](#hardware-e-montagem)
 - [Ambiente de desenvolvimento](#ambiente-de-desenvolvimento)
 - [Configuração do projeto](#configuração-do-projeto)
@@ -23,7 +24,7 @@ lenin.cristi@aluno.ufabc.edu.br
 - [Problemas comuns](#problemas-comuns)
 - [Licença](#licença)
 
-## Resumo
+## Resumo e funcionamento
 
 O **DrumDuino** é um projeto didático de bateria eletrônica baseado no Arduino Nano (ATmega328P) com o Uno R3 como alternativa, usa código escrito em **C++** organizado num projeto **PlatformIO**.
 
@@ -41,6 +42,41 @@ flowchart LR
     F --> A["Áudio no computador"]
     P <-->|Conexão e monitor| W["Interface web local"]
 ```
+
+## Início rápido
+
+Instale Python 3.12 ou superior (ou permita que o `uv` o instale), `uv`, VS Code com PlatformIO IDE e FluidSynth antes de começar. Baixe também a SoundFont GeneralUser GS e salve-a como `soundfonts/GeneralUser-GS.sf2`.
+
+Clone este repositório de <https://github.com/lnncrs/DrumDuino>.
+
+### 1. Prepare o ambiente e o áudio
+
+Abra um terminal na pasta do repositório, instale as dependências e crie a configuração local:
+
+```powershell
+uv sync --locked
+if (-not (Test-Path .env)) { Copy-Item .env.example .env }
+```
+
+No Windows, edite `.env` e defina `FLUIDSYNTH_DLL` com o caminho para `libfluidsynth-3.dll`. No Ubuntu, mantenha esse valor vazio.
+
+### 2. Grave o firmware na placa
+
+Monte ao menos um sensor piezoelétrico na entrada A0, conforme a [montagem simplificada](#montagem-simplificada-com-apenas-um-sensor-piezoelétrico), e conecte o Arduino Nano com um cabo USB de dados.
+
+Abra a pasta do projeto no VS Code. Nas tarefas do PlatformIO, selecione o ambiente `hit` e use **Upload** para gravar o firmware na placa.
+
+### 3. Inicie a bateria
+
+Feche qualquer monitor serial do PlatformIO e execute, na raiz do repositório:
+
+```powershell
+uv run python -m app.backend.server
+```
+
+Abra <http://127.0.0.1:8000>, clique em **Atualizar portas**, selecione a porta do Arduino em **Porta serial** e clique em **Conectar**. Ao tocar o sensor, a mensagem `HIT,0,<leitura>` deve aparecer no monitor e acionar a nota configurada para `DRUM_A0`.
+
+Consulte [Ambiente de desenvolvimento](#ambiente-de-desenvolvimento) e [Configuração do projeto](#configuração-do-projeto) para a instalação detalhada dos pré-requisitos e a personalização dos sons.
 
 ## Hardware e montagem
 
