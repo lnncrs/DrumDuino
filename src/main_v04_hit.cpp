@@ -12,7 +12,7 @@ const uint8_t PINO_PIEZO_A7 = A7;
 const uint8_t PINO_LED = LED_BUILTIN;
 const uint8_t SENSOR_ID = 0;
 
-const int LIMIAR = 80;
+const int LIMIAR = 120;
 const unsigned long INTERVALO_BATIDAS_MS = 100;
 const unsigned long TEMPO_LED_MS = 40;
 

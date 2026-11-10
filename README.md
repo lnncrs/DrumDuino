@@ -22,6 +22,7 @@ lenin.cristi@aluno.ufabc.edu.br
 - [Software usado no projeto original](#software-usado-no-projeto-original)
 - [Proposta de software para utilização no projeto atual](#proposta-de-software-para-utilização-no-projeto-atual)
 - [Problemas comuns](#problemas-comuns)
+- [Anexo: mapa de sons de bateria](#anexo-mapa-de-sons-de-bateria)
 - [Licença](#licença)
 
 ## Resumo e funcionamento
@@ -409,7 +410,7 @@ No Ubuntu, deixe `FLUIDSYNTH_DLL` vazio: a biblioteca instalada pelo sistema é 
 | `DRUM_A2=42` | O evento `HIT,2,<leitura>` toca chimbal fechado |
 | Valor vazio | Desabilita o som dessa entrada |
 
-Os valores são notas MIDI de 0 a 127 no kit de percussão da GeneralUser GS. Se `DRUM_A0` estiver ausente, o padrão é 38; as demais entradas ficam sem som quando ausentes. A intensidade é fixa em **100**.
+Os valores são notas MIDI de 0 a 127 no kit de percussão da GeneralUser GS. Consulte o [mapa de sons de bateria](#anexo-mapa-de-sons-de-bateria) para escolher as notas. Se `DRUM_A0` estiver ausente, o padrão é 38; as demais entradas ficam sem som quando ausentes. A intensidade é fixa em **100**.
 
 O ID identifica a entrada: `0` corresponde a A0, até `7` para A7. Configurar os sons não adiciona leituras ao Arduino: o firmware `hit` fornecido lê o sensor 0. Outros sensores precisam ser configurados no firmware.
 
@@ -794,6 +795,79 @@ flowchart LR
 | Fechar a aba não libera a porta | Use Desconectar na página ou Ctrl+C no terminal do backend |
 
 Para investigar mensagens sem reproduzir áudio, use o monitor Python de terminal. Apenas um monitor pode abrir a mesma porta serial por vez.
+
+## Anexo: mapa de sons de bateria
+
+Este mapa foi levantado a partir do arquivo GeneralUser GS local, identificado nos metadados como **2.0.3 BETA**. Outras versões da SoundFont podem apresentar diferenças. A [página oficial do GeneralUser GS](https://schristiancollins.com/generaluser) fornece o download e a documentação do banco.
+
+O backend seleciona o kit **Standard 1**, programa 0 do banco de percussão 128, no canal MIDI 10. As tabelas abaixo mostram as notas disponíveis nesse kit. Alterar uma variável `DRUM_A0` a `DRUM_A7` escolhe uma nota do Standard 1, não outro kit. Por exemplo, `DRUM_A0=36` associa o sensor A0 ao bumbo; reinicie o backend após alterar o `.env`.
+
+### Bateria e pratos
+
+| Nota MIDI | Som |
+|---:|---|
+| 35 | Bumbo acústico |
+| 36 | Bumbo |
+| 37 | Aro da caixa (*side stick/rim shot*) |
+| 38 | Caixa acústica |
+| 39 | Palmas |
+| 40 | Caixa elétrica |
+| 41 | Surdo grave (*low floor tom*) |
+| 42 | Chimbal fechado |
+| 43 | Surdo agudo (*high floor tom*) |
+| 44 | Chimbal com pedal |
+| 45 | Tom grave |
+| 46 | Chimbal aberto |
+| 47 | Tom médio-grave |
+| 48 | Tom médio-agudo |
+| 49 | Prato de ataque 1 (*crash*) |
+| 50 | Tom agudo |
+| 51 | Prato de condução 1 (*ride*) |
+| 52 | Prato chinês |
+| 53 | Cúpula do ride (*ride bell*) |
+| 54 | Pandeiro (*tambourine*) |
+| 55 | Prato *splash* |
+| 56 | Cowbell |
+| 57 | Prato de ataque 2 (*crash*) |
+| 58 | *Vibraslap* |
+| 59 | Prato de condução 2 (*ride*) |
+
+### Percussão e efeitos adicionais
+
+| Nota MIDI | Som | Nota MIDI | Som |
+|---:|---|---:|---|
+| 27 | Estalo de dedos | 28 | Tapa (*slap*) |
+| 29 | *Scratch* de disco, avanço | 30 | *Scratch* de disco, retorno |
+| 31 | Batida de baquetas | 32 | Clique eletrônico |
+| 33 | Clique de metrônomo | 34 | Sino de metrônomo |
+| 60 | Bongô agudo | 61 | Bongô grave |
+| 62 | Conga aguda abafada | 63 | Conga aguda aberta |
+| 64 | Conga grave | 65 | Timbale agudo |
+| 66 | Timbale grave | 67 | Agogô agudo |
+| 68 | Agogô grave | 69 | Cabasa |
+| 70 | Maracas | 71 | Apito curto |
+| 72 | Apito longo | 73 | Güiro curto |
+| 74 | Güiro longo | 75 | Claves |
+| 76 | Bloco de madeira agudo | 77 | Bloco de madeira grave |
+| 78 | Cuíca abafada | 79 | Cuíca aberta |
+| 80 | Triângulo abafado | 81 | Triângulo aberto |
+| 82 | Chocalho (*shaker*) | 83 | Guizos |
+| 84 | Carrilhão (*chimes*) | 85 | Castanholas |
+| 86 | Surdo abafado | 87 | Surdo aberto |
+
+### Kits disponíveis
+
+O arquivo analisado contém os 13 kits abaixo, todos no banco 128. O número indicado é o programa MIDI. O projeto seleciona somente o Standard 1; usar outro kit exige alterar a seleção de programa no backend. Os sons e os mapeamentos podem variar entre kits.
+
+| Programa | Kit | Programa | Kit |
+|---:|---|---:|---|
+| 0 | Standard 1 | 1 | Standard 2 |
+| 2 | Standard 3 | 8 | Room |
+| 16 | Power | 24 | Electronic |
+| 25 | 808/909 | 26 | Dance |
+| 32 | Jazz | 40 | Brush |
+| 48 | Orchestral | 56 | SFX |
+| 127 | CM-64/32L | | |
 
 ## Licença
 
