@@ -8,7 +8,9 @@ const bool SENSOR_HABILITADO[NUM_SENSORES] = {
     true, true, true, false, false, false, false, false};
 
 const uint8_t PINO_LED = LED_BUILTIN;
-const int LIMIAR = 80;
+const uint8_t SENSOR_ID = 0;
+
+const int LIMIAR = 120;
 const unsigned long INTERVALO_BATIDAS_MS = 100;
 const unsigned long TEMPO_LED_MS = 40;
 
