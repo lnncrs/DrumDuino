@@ -5,13 +5,13 @@ const uint8_t NUM_SENSORES = sizeof(PINOS_PIEZO) / sizeof(PINOS_PIEZO[0]);
 
 // Habilite somente os canais com piezo conectado. Entradas soltas captam ruido.
 const bool SENSOR_HABILITADO[NUM_SENSORES] = {
-    true, true, true, false, false, false, false, false};
+    true, true, true, true, true, false, false, false};
 
 const uint8_t PINO_LED = LED_BUILTIN;
 const uint8_t SENSOR_ID = 0;
 
-const int LIMIAR = 120;
-const unsigned long INTERVALO_BATIDAS_MS = 100;
+const int LIMIAR = 150;
+const unsigned long INTERVALO_BATIDAS_MS = 300;
 const unsigned long TEMPO_LED_MS = 40;
 
 unsigned long ultimaBatida[NUM_SENSORES] = {};
